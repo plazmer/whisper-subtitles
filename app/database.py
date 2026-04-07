@@ -48,6 +48,10 @@ async def init_db():
             await db.execute("ALTER TABLE jobs ADD COLUMN is_paused INTEGER DEFAULT 0")
         except:
             pass
+        try:
+            await db.execute("ALTER TABLE jobs ADD COLUMN status_message TEXT")
+        except:
+            pass
         await db.commit()
 
 
@@ -56,17 +60,20 @@ async def create_job(job: Job) -> Job:
     async with aiosqlite.connect(settings.db_path) as db:
         files_json = json.dumps([f.model_dump() for f in job.files], default=str)
         indices_json = json.dumps(job.selected_indices) if job.selected_indices else None
+        status_message = job.status_message or job.files[0].status_message if job.files else None
         await db.execute("""
-            INSERT INTO jobs (id, type, status, progress, created_at, updated_at, 
-                            source, files, embed_subtitles, language, model, error, 
-                            is_group, group_name, selected_indices, download_speed, eta, is_paused)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO jobs (id, type, status, progress, created_at, updated_at,
+                            source, files, embed_subtitles, language, model, error,
+                            is_group, group_name, selected_indices, download_speed, eta, is_paused,
+                            status_message)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             job.id, job.type.value, job.status.value, job.progress,
             job.created_at.isoformat(), job.updated_at.isoformat(),
             job.source, files_json, int(job.embed_subtitles),
             job.language, job.model, job.error, int(job.is_group), job.group_name,
-            indices_json, job.download_speed, job.eta, int(job.is_paused)
+            indices_json, job.download_speed, job.eta, int(job.is_paused),
+            status_message
         ))
         await db.commit()
     return job
@@ -98,18 +105,20 @@ async def update_job(job: Job) -> Job:
         files_json = json.dumps([f.model_dump() for f in job.files], default=str)
         indices_json = json.dumps(job.selected_indices) if job.selected_indices else None
         job.updated_at = datetime.utcnow()
+        # Get status_message from job or first file
+        status_message = job.status_message or (job.files[0].status_message if job.files else None)
         await db.execute("""
-            UPDATE jobs SET 
+            UPDATE jobs SET
                 status = ?, progress = ?, updated_at = ?, files = ?,
                 embed_subtitles = ?, language = ?, model = ?, error = ?,
                 is_group = ?, group_name = ?, selected_indices = ?,
-                download_speed = ?, eta = ?, is_paused = ?
+                download_speed = ?, eta = ?, is_paused = ?, status_message = ?
             WHERE id = ?
         """, (
             job.status.value, job.progress, job.updated_at.isoformat(),
             files_json, int(job.embed_subtitles), job.language, job.model,
             job.error, int(job.is_group), job.group_name, indices_json,
-            job.download_speed, job.eta, int(job.is_paused), job.id
+            job.download_speed, job.eta, int(job.is_paused), status_message, job.id
         ))
         await db.commit()
     return job
@@ -147,6 +156,7 @@ def _row_to_job(row: dict) -> Job:
             filename=f['filename'],
             status=JobStatus(f['status']),
             progress=f.get('progress', 0),
+            status_message=f.get('status_message'),
             audio_tracks=audio_tracks,
             selected_track=f.get('selected_track'),
             srt_path=f.get('srt_path'),
@@ -176,6 +186,7 @@ def _row_to_job(row: dict) -> Job:
         language=row['language'],
         model=row['model'],
         error=row['error'],
+        status_message=row.get('status_message'),
         is_group=bool(row.get('is_group', 0)),
         group_name=row.get('group_name'),
         selected_indices=selected_indices,

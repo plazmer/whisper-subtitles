@@ -84,6 +84,8 @@ settings:
       small: "Хороший баланс скорости и качества"
       medium: "Рекомендуется для большинства задач"
       large-v2: "Максимальная точность, все языки"
+      large-v3: "Лучшая точность, рекомендуется для NVIDIA GPU"
+      large-v3-turbo: "Быстрая обработка с хорошим качеством"
       large-v3-int4: "Whisper V3 (INT4) - Быстро, для N150"
       large-v3-int8: "Whisper V3 (INT8) - Рекомендуется для N150"
       large-v3-fp16: "Whisper V3 (FP16) - Максимальная точность"
@@ -97,6 +99,9 @@ settings:
     label: "Количество потоков CPU"
     hint: "0 = автоопределение (все ядра)"
     auto: "Авто"
+  device:
+    label: "Устройство"
+    hint: "Выберите устройство для транскрипции"
   audio_language:
     label: "Язык аудио по умолчанию"
   interface_language:
@@ -192,7 +197,11 @@ languages:
   ka: "ქარdelaylი"
   hy: "Հայdelays"
 
-# Сообщения уведомлений
+# Player
+player:
+  title: "Видеоплеер"
+
+# Messages
 toast:
   error:
     load_settings: "Ошибка загрузки настроек"
