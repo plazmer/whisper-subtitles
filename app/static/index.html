@@ -243,6 +243,16 @@
                         </select>
                     </div>
 
+                    <div class="settings-section">
+                        <h3 data-i18n="settings.diarization_model.label">Diarization Model</h3>
+                        <select id="setting-diarization-model" class="form-select"></select>
+                    </div>
+
+                    <div class="settings-section">
+                        <h3 data-i18n="settings.hf_token.label">HuggingFace Token</h3>
+                        <input type="password" id="setting-hf-token" class="form-select" placeholder="hf_...">
+                    </div>
+
                     <hr>
 
                     <div class="settings-section">
@@ -321,6 +331,24 @@
                         data-i18n="common.cancel">Cancel</button>
                     <button id="confirm-files" class="btn btn-primary" data-i18n="files.download_selected">Download
                         selected</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Speaker Editing Modal -->
+        <div id="speakers-modal" class="modal hidden">
+            <div class="modal-backdrop"></div>
+            <div class="modal-content" style="max-width: 700px;">
+                <div class="modal-header">
+                    <h2>🎤 <span data-i18n="speakers.title">Speaker Editing</span></h2>
+                    <button class="btn btn-icon modal-close">✕</button>
+                </div>
+                <div class="modal-body">
+                    <div id="speakers-list" class="speakers-list"></div>
+                </div>
+                <div class="modal-footer">
+                    <button id="speakers-keep" class="btn btn-secondary" data-i18n="speakers.keep_as_is">Keep as is</button>
+                    <button id="speakers-confirm" class="btn btn-primary" data-i18n="speakers.confirm">Confirm</button>
                 </div>
             </div>
         </div>

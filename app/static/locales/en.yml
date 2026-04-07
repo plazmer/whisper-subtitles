@@ -51,7 +51,9 @@ jobs:
     downloading: "Downloading"
     extracting: "Extracting audio"
     awaiting_track: "Track selection"
+    awaiting_speakers: "Speaker editing"
     transcribing: "Transcribing"
+    generating: "Generating subtitles"
     embedding: "Embedding subtitles"
     converting: "Converting"
     completed: "Completed"
@@ -60,7 +62,9 @@ jobs:
     pause: "Pause"
     resume: "Resume"
     select_track: "Select track"
+    edit_speakers: "Edit speakers"
     download_srt: "Download SRT"
+    download_ass: "Download ASS"
     download_video: "Download Video"
     watch_online: "Watch Online"
     pending_conversion: "Pending"
@@ -104,6 +108,10 @@ settings:
     hint: "Select device for transcription"
   audio_language:
     label: "Default Audio Language"
+  diarization_model:
+    label: "Diarization Model"
+  hf_token:
+    label: "HuggingFace Token"
   interface_language:
     label: "Interface Language"
   password:
@@ -124,6 +132,12 @@ tracks:
     one: "channel"
     few: "channels"
     many: "channels"
+
+# Speaker Selection
+speakers:
+  title: "Speaker Editing"
+  keep_as_is: "Keep as is"
+  confirm: "Confirm"
 
 # File Selection
 files:
@@ -222,6 +236,8 @@ toast:
     no_video_files: "No video files found in torrent"
     load_files: "Failed to load file list"
     select_at_least_one: "Select at least one file"
+    load_speakers: "Failed to load speakers"
+    confirm_speakers: "Failed to confirm speakers"
   success:
     settings_saved: "Settings saved"
     password_changed: "Password changed successfully"
@@ -231,6 +247,7 @@ toast:
     job_deleted: "Task deleted"
     download_paused: "Download paused"
     download_resumed: "Download resumed"
+    speakers_confirmed: "Speakers confirmed, generating subtitles"
   info:
     track_remaining: "Track selected for file. Remaining: {count}"
     loading_files: "Loading file list..."

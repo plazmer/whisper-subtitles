@@ -17,7 +17,9 @@ const state = {
     // Torrent file selection
     torrentFiles: [],
     selectedFileIndices: [],
-    pendingTorrentData: null  // Stores form data while showing file selection
+    pendingTorrentData: null,  // Stores form data while showing file selection
+    speakersJobId: null,
+    speakersData: {}
 };
 
 // ============================================================================
@@ -112,6 +114,18 @@ const api = {
 
     async getTorrentFiles(formData) {
         return this.request('POST', '/api/torrent-files', formData, true);
+    },
+
+    async getSpeakers(jobId) {
+        return this.request('GET', `/api/jobs/${jobId}/speakers`);
+    },
+
+    async updateSpeakers(jobId, speakers) {
+        return this.request('PUT', `/api/jobs/${jobId}/speakers`, { speakers });
+    },
+
+    async confirmSpeakers(jobId) {
+        return this.request('POST', `/api/jobs/${jobId}/speakers/confirm`);
     }
 };
 
@@ -256,6 +270,26 @@ function renderSettings() {
 
     updateModelDescription();
 
+    const diarizationSelect = $('#setting-diarization-model');
+    if (diarizationSelect) {
+        diarizationSelect.innerHTML = '';
+        const diarizationModels = state.settings.available_diarization_models || {};
+        for (const [key, model] of Object.entries(diarizationModels)) {
+            const option = document.createElement('option');
+            option.value = key;
+            option.textContent = model.name;
+            if (key === state.settings.diarization_model) {
+                option.selected = true;
+            }
+            diarizationSelect.appendChild(option);
+        }
+    }
+
+    const hfTokenInput = $('#setting-hf-token');
+    if (hfTokenInput) {
+        hfTokenInput.value = state.settings.hf_token || '';
+    }
+
     // Set device selection
     const deviceSelect = $('#setting-device');
     if (deviceSelect) {
@@ -283,7 +317,9 @@ async function handleSaveSettings() {
         const settings = {
             model: $('#setting-model').value,
             device: $('#setting-device').value,
-            language: $('#setting-language').value
+            language: $('#setting-language').value,
+            diarization_model: $('#setting-diarization-model')?.value,
+            hf_token: $('#setting-hf-token')?.value || ''
         };
 
         state.settings = await api.updateSettings(settings);
@@ -322,6 +358,7 @@ async function loadJobs() {
         state.jobs = result.jobs;
         renderJobs();
         checkForTrackSelection();
+        checkForSpeakerSelection();
     } catch (err) {
         showToast(i18n.t('toast.error.load_jobs'), 'error');
     }
@@ -386,12 +423,21 @@ function renderJobCard(job) {
                 🎵 ${i18n.t('jobs.actions.select_track')}
             </button>
         `;
+    } else if (job.status === 'awaiting_speakers') {
+        actions = `
+            <button class="btn btn-primary btn-sm" data-action="edit-speakers" data-job-id="${job.id}">
+                🎤 ${i18n.t('jobs.actions.edit_speakers')}
+            </button>
+        `;
     } else if (showJobLevelButtons && (job.status === 'converting' || job.status === 'completed' || job.status === 'embedding')) {
         // Single file jobs only - show download buttons at job level
         const canWatch = job.status === 'completed';
         actions = `
             <button class="btn btn-primary btn-sm" data-action="download-srt" data-job-id="${job.id}">
                 📄 ${i18n.t('jobs.actions.download_srt')}
+            </button>
+            <button class="btn btn-secondary btn-sm" data-action="download-ass" data-job-id="${job.id}">
+                🎨 ${i18n.t('jobs.actions.download_ass')}
             </button>
             <button class="btn btn-secondary btn-sm" data-action="download-video" data-job-id="${job.id}">
                 🎬 ${i18n.t('jobs.actions.download_video')}
@@ -419,6 +465,7 @@ function renderJobCard(job) {
                         ${f.status === 'completed' || f.status === 'converting' || f.status === 'embedding' ? `
                             <div class="job-file-actions">
                                 ${f.srt_path ? `<button class="btn btn-xs" data-action="download-srt" data-job-id="${job.id}" data-file-id="${f.id}" title="${i18n.t('jobs.actions.download_srt')}">📄</button>` : ''}
+                                ${f.srt_path ? `<button class="btn btn-xs" data-action="download-ass" data-job-id="${job.id}" data-file-id="${f.id}" title="${i18n.t('jobs.actions.download_ass')}">🎨</button>` : ''}
                                 ${f.output_path ? `<button class="btn btn-xs" data-action="download-video" data-job-id="${job.id}" data-file-id="${f.id}" title="${i18n.t('jobs.actions.download_video')}">🎬</button>` : ''}
                                 ${f.streaming_path && f.status === 'completed' ? `<button class="btn btn-xs" data-action="watch-online" data-job-id="${job.id}" data-file-id="${f.id}" title="${i18n.t('jobs.actions.watch_online')}">▶️</button>` : ''}
                             </div>
@@ -484,6 +531,15 @@ async function handleJobAction(e) {
                 : `/api/jobs/${jobId}/download/video`;
             window.location.href = videoUrl;
             break;
+        case 'download-ass':
+            const assUrl = fileId
+                ? `/api/jobs/${jobId}/download/ass?file_id=${fileId}`
+                : `/api/jobs/${jobId}/download/ass`;
+            window.location.href = assUrl;
+            break;
+        case 'edit-speakers':
+            await openSpeakersModal(jobId);
+            break;
         case 'watch-online':
             await prepareAndPlayStreaming(jobId, fileId);
             break;
@@ -528,6 +584,62 @@ function checkForTrackSelection() {
         if (awaitingJob) {
             showTrackSelection(awaitingJob.id);
         }
+    }
+}
+
+function checkForSpeakerSelection() {
+    const modal = $('#speakers-modal');
+    const isModalVisible = !modal.classList.contains('hidden');
+    if (!isModalVisible) {
+        const awaitingJob = state.jobs.find(j => j.status === 'awaiting_speakers');
+        if (awaitingJob) {
+            openSpeakersModal(awaitingJob.id);
+        }
+    }
+}
+
+async function openSpeakersModal(jobId) {
+    try {
+        const data = await api.getSpeakers(jobId);
+        state.speakersJobId = jobId;
+        state.speakersData = JSON.parse(JSON.stringify(data.speakers || {}));
+
+        const list = $('#speakers-list');
+        const examples = data.examples || {};
+        list.innerHTML = Object.entries(state.speakersData).map(([speakerId, speaker]) => `
+            <div class="speaker-card">
+                <div class="speaker-color-wrap">
+                    <input class="speaker-color-input" type="color" value="${speaker.color}" data-speaker-id="${speakerId}" data-role="speaker-color">
+                </div>
+                <div>
+                    <input class="speaker-name-input" type="text" value="${speaker.name}" data-speaker-id="${speakerId}" data-role="speaker-name">
+                    <div class="speaker-examples">
+                        ${(examples[speakerId] || []).map(text => `<span>${text}</span>`).join('')}
+                    </div>
+                </div>
+            </div>
+        `).join('');
+
+        showModal('speakers-modal');
+    } catch (err) {
+        showToast(i18n.t('toast.error.load_speakers'), 'error');
+    }
+}
+
+async function confirmSpeakers(applyChanges) {
+    if (!state.speakersJobId) {
+        return;
+    }
+    try {
+        if (applyChanges) {
+            await api.updateSpeakers(state.speakersJobId, state.speakersData);
+        }
+        await api.confirmSpeakers(state.speakersJobId);
+        hideModal('speakers-modal');
+        showToast(i18n.t('toast.success.speakers_confirmed'), 'success');
+        await loadJobs();
+    } catch (err) {
+        showToast(i18n.t('toast.error.confirm_speakers'), 'error');
     }
 }
 
@@ -1066,6 +1178,10 @@ async function init() {
     // Track selection
     $('#confirm-track').addEventListener('click', handleTrackConfirm);
 
+    // Speaker selection
+    $('#speakers-confirm').addEventListener('click', () => confirmSpeakers(true));
+    $('#speakers-keep').addEventListener('click', () => confirmSpeakers(false));
+
     // Tab selection for track items
     document.addEventListener('click', (e) => {
         if (e.target.closest('.track-item')) {
@@ -1098,6 +1214,21 @@ async function init() {
     document.addEventListener('change', (e) => {
         if (e.target.closest('#file-list')) {
             updateFileSelectionCount();
+        }
+        if (e.target.dataset.role === 'speaker-color') {
+            const speakerId = e.target.dataset.speakerId;
+            if (speakerId && state.speakersData[speakerId]) {
+                state.speakersData[speakerId].color = e.target.value;
+            }
+        }
+    });
+
+    document.addEventListener('input', (e) => {
+        if (e.target.dataset.role === 'speaker-name') {
+            const speakerId = e.target.dataset.speakerId;
+            if (speakerId && state.speakersData[speakerId]) {
+                state.speakersData[speakerId].name = e.target.value;
+            }
         }
     });
 

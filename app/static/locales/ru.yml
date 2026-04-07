@@ -51,7 +51,9 @@ jobs:
     downloading: "Загрузка"
     extracting: "Извлечение аудио"
     awaiting_track: "Выбор дорожки"
+    awaiting_speakers: "Редактирование спикеров"
     transcribing: "Распознавание"
+    generating: "Генерация субтитров"
     embedding: "Вшивание субтитров"
     converting: "Конвертация"
     completed: "Готово"
@@ -60,7 +62,9 @@ jobs:
     pause: "Пауза"
     resume: "Продолжить"
     select_track: "Выбрать дорожку"
+    edit_speakers: "Редактировать спикеров"
     download_srt: "Скачать SRT"
+    download_ass: "Скачать ASS"
     download_video: "Скачать видео"
     watch_online: "Смотреть онлайн"
     pending_conversion: "Ожидается"
@@ -104,6 +108,10 @@ settings:
     hint: "Выберите устройство для транскрипции"
   audio_language:
     label: "Язык аудио по умолчанию"
+  diarization_model:
+    label: "Модель диаризации"
+  hf_token:
+    label: "Токен HuggingFace"
   interface_language:
     label: "Язык интерфейса"
   password:
@@ -124,6 +132,12 @@ tracks:
     one: "канал"
     few: "канала"
     many: "каналов"
+
+# Speaker Selection
+speakers:
+  title: "Редактирование спикеров"
+  keep_as_is: "Оставить как есть"
+  confirm: "Подтвердить"
 
 # File Selection
 files:
@@ -222,6 +236,8 @@ toast:
     no_video_files: "Видеофайлы не найдены в торренте"
     load_files: "Не удалось загрузить список файлов"
     select_at_least_one: "Выберите хотя бы один файл"
+    load_speakers: "Не удалось загрузить спикеров"
+    confirm_speakers: "Не удалось подтвердить спикеров"
   success:
     settings_saved: "Настройки сохранены"
     password_changed: "Пароль успешно изменён"
@@ -231,6 +247,7 @@ toast:
     job_deleted: "Задание удалено"
     download_paused: "Загрузка приостановлена"
     download_resumed: "Загрузка возобновлена"
+    speakers_confirmed: "Спикеры подтверждены, генерируем субтитры"
   info:
     track_remaining: "Дорожка выбрана. Осталось: {count}"
     loading_files: "Загружаем список файлов..."
