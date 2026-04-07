@@ -626,12 +626,13 @@ async def run_transcription_subprocess(
     ]
     
     print(f"[TRANSCRIBE] Starting subprocess: {' '.join(cmd)}")
-    
-    # Start subprocess
+
+    # Start subprocess with increased line limit (10MB) to handle long outputs
     process = await asyncio.create_subprocess_exec(
         *cmd,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
+        limit=10*1024*1024,  # 10MB limit instead of default 64KB
         cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     )
     
@@ -656,17 +657,18 @@ async def run_transcription_subprocess(
             line = await process.stdout.readline()
             if not line:
                 break
-            
+
             try:
                 data = json.loads(line.decode().strip())
                 status = data.get("status", "")
                 progress = data.get("progress", 0)
-                
-                print(f"[TRANSCRIBE] {status}: {progress}%")
-                
+                message = data.get("message", "")
+
+                print(f"[TRANSCRIBE] {status}: {progress}% - {message}")
+
                 if progress_callback and progress > 0:
-                    await progress_callback(progress)
-                
+                    await progress_callback(progress, status, message)
+
                 if status == "completed":
                     break
                 elif status == "error":
@@ -912,7 +914,12 @@ async def process_job(job_id: str):
                 temp_dir = os.path.join(settings.temp_dir, job_id)
                 os.makedirs(temp_dir, exist_ok=True)
                 audio_path = os.path.join(temp_dir, f"{file.id}.wav")
-                
+
+                file.status = JobStatus.EXTRACTING
+                file.status_message = f"Extracting audio: {file.filename}"
+                job.status = JobStatus.EXTRACTING
+                await update_job(job)
+
                 await extract_audio(video_path, audio_path, file.selected_track)
                 
                 # Transcribe
@@ -922,8 +929,20 @@ async def process_job(job_id: str):
                 base_name = os.path.splitext(file.filename)[0]
                 srt_path = os.path.join(output_dir, f"{base_name}.srt")
                 
-                async def update_transcribe_progress(progress):
+                async def update_transcribe_progress(progress, status="", message=""):
                     file.progress = progress
+                    if message:
+                        file.status_message = message
+                    # Map worker status to job status
+                    status_map = {
+                        "loading_model": JobStatus.TRANSCRIBING,
+                        "model_loaded": JobStatus.TRANSCRIBING, 
+                        "loading_audio": JobStatus.EXTRACTING,
+                        "transcribing": JobStatus.TRANSCRIBING,
+                        "generating_srt": JobStatus.TRANSCRIBING,
+                    }
+                    if status in status_map:
+                        job.status = status_map[status]
                     await update_job(job)
                 
                 # Run transcription as subprocess (can be killed on cancel)
@@ -945,22 +964,28 @@ async def process_job(job_id: str):
                     # Validate SRT file exists and has content
                     if not os.path.exists(srt_path) or os.path.getsize(srt_path) == 0:
                         raise Exception(f"Transcription failed: SRT file is empty or missing ({srt_path})")
-                    
+
+                    file.status_message = f"Embedding subtitles: {file.filename}"
+                    job.status = JobStatus.EMBEDDING
+                    await update_job(job)
+
                     output_video = os.path.join(output_dir, f"{base_name}_subtitled.mkv")
                     print(f"[EMBED] Starting embed_subtitles: {video_path} + {srt_path} -> {output_video}")
                     await embed_subtitles(video_path, srt_path, output_video)
                     print(f"[EMBED] Completed: {output_video}, exists={os.path.exists(output_video)}")
                     file.output_path = output_video
-                    
+
                     # CRITICAL: Save output_path to DB immediately so it's available for download
                     job.status = JobStatus.EMBEDDING
                     file.status = JobStatus.EMBEDDING
+                    file.status_message = None  # Clear message
                     await update_job(job)
                     print(f"[EMBED] Saved output_path to DB: {file.output_path}")
-                    
+
                     # Create streaming version with burned-in subtitles for online viewing
                     job.status = JobStatus.CONVERTING
                     file.status = JobStatus.CONVERTING
+                    file.status_message = f"Creating streaming version: {file.filename}"
                     file.progress = 0  # Reset progress for conversion phase
                     await update_job(job)
                     

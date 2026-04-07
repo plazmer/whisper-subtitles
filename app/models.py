@@ -41,6 +41,7 @@ class JobFile(BaseModel):
     filename: str
     status: JobStatus = JobStatus.PENDING
     progress: float = 0.0
+    status_message: Optional[str] = None  # Detailed progress message
     audio_tracks: List[AudioTrack] = []
     selected_track: Optional[int] = None
     srt_path: Optional[str] = None
@@ -71,6 +72,9 @@ class Job(BaseModel):
     
     # Error info
     error: Optional[str] = None
+
+    # Status message for detailed progress info
+    status_message: Optional[str] = None
     
     # Group info (for multi-file torrents)
     is_group: bool = False

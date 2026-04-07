@@ -354,6 +354,17 @@ function renderJobCard(job) {
         ? job.files.reduce((sum, f) => sum + f.progress, 0) / job.files.length
         : job.progress;
 
+    // Get the most detailed status message from any file or job
+    let statusDisplay = formatStatus(job.status);
+    let statusMessage = job.status_message || '';
+    
+    // Check if any file has a more detailed message
+    for (const file of job.files) {
+        if (file.status_message && !statusMessage) {
+            statusMessage = file.status_message;
+        }
+    }
+
     let actions = '';
 
     // For multi-file jobs, DON'T show job-level buttons - only per-file buttons
@@ -426,7 +437,7 @@ function renderJobCard(job) {
                     <div class="job-card-title">${job.source || i18n.t('jobs.unknown')}</div>
                     <div class="job-card-type">${getJobTypeLabel(job.type)}</div>
                 </div>
-                <span class="job-card-status status-${job.status}">${formatStatus(job.status)}</span>
+                <span class="job-card-status status-${job.status}">${statusDisplay}</span>
             </div>
             ${job.status !== 'completed' && job.status !== 'failed' ? `
                 <div class="job-card-progress">
@@ -437,6 +448,7 @@ function renderJobCard(job) {
                         ${Math.round(progress)}%
                         ${job.status === 'downloading' && job.download_speed ? ` • ${job.download_speed}` : ''}
                         ${job.status === 'downloading' && job.eta ? ` • ⏱ ${job.eta}` : ''}
+                        ${statusMessage ? `<br><span class="status-message">${statusMessage}</span>` : ''}
                     </div>
                 </div>
             ` : ''}

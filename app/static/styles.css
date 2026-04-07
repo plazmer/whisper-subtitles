@@ -697,6 +697,13 @@ body {
     margin-top: 6px;
 }
 
+.status-message {
+    color: var(--text-secondary);
+    font-weight: 500;
+    display: block;
+    margin-top: 2px;
+}
+
 .job-card-actions {
     display: flex;
     gap: 8px;

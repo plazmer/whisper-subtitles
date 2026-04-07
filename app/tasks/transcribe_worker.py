@@ -4,8 +4,10 @@ Standalone transcription worker that can be killed.
 Used for proper job cancellation support.
 
 Outputs JSON progress updates to stdout:
-  {"status": "loading_model", "progress": 0}
-  {"status": "transcribing", "progress": 50}
+  {"status": "downloading_model", "progress": 0, "message": "Downloading model..."}
+  {"status": "loading_model", "progress": 5, "message": "Loading model to memory..."}
+  {"status": "loading_audio", "progress": 10, "message": "Loading audio file..."}
+  {"status": "transcribing", "progress": 15, "message": "Starting transcription..."}
   {"status": "completed", "progress": 100, "output": "/path/to/file.srt"}
   {"status": "error", "error": "error message"}
 """
@@ -59,9 +61,21 @@ def generate_srt_from_result(result) -> str:
     return "\n".join(srt_lines)
 
 
+def emit_status(status: str, progress: int, message: str = None, **kwargs):
+    """Emit a JSON status line to stdout."""
+    output = {
+        "status": status,
+        "progress": progress,
+    }
+    if message:
+        output["message"] = message
+    output.update(kwargs)
+    print(json.dumps(output), flush=True)
+
+
 def main():
     if len(sys.argv) < 5:
-        print(json.dumps({"status": "error", "error": "Usage: transcribe_worker.py <audio_path> <output_srt> <model_name> [language] [device]"}), flush=True)
+        emit_status("error", 0, message="Usage: transcribe_worker.py <audio_path> <output_srt> <model_name> [language] [device]")
         sys.exit(1)
 
     audio_path = sys.argv[1]
@@ -72,7 +86,7 @@ def main():
 
     # Handle termination signals gracefully
     def signal_handler(signum, frame):
-        print(json.dumps({"status": "cancelled", "progress": 0}), flush=True)
+        emit_status("cancelled", 0, message="Transcription cancelled")
         sys.exit(0)
 
     signal.signal(signal.SIGTERM, signal_handler)
@@ -88,16 +102,16 @@ def main():
         
         # Check CUDA availability
         if device == "cuda" and not torch.cuda.is_available():
-            print(json.dumps({"status": "warning", "message": "CUDA not available, falling back to CPU"}), flush=True)
+            emit_status("warning", 0, message="CUDA not available, falling back to CPU")
             device = "cpu"
 
-        print(json.dumps({"status": "loading_model", "progress": 0, "device": device, "model": model_name}), flush=True)
+        emit_status("loading_model", 0, message=f"Loading model '{model_name}' to {device}...")
 
         # Load model (cache to /app/models for volume persistence)
         model = whisper.load_model(model_name, device=device, download_root="/app/models")
 
-        print(json.dumps({"status": "loading_model", "progress": 10}), flush=True)
-        print(json.dumps({"status": "loading_audio", "progress": 15}), flush=True)
+        emit_status("model_loaded", 5, message=f"Model '{model_name}' loaded successfully")
+        emit_status("loading_audio", 10, message=f"Loading audio: {os.path.basename(audio_path)}")
 
         # Get audio duration for progress estimation
         import librosa
@@ -109,7 +123,8 @@ def main():
         import gc
         gc.collect()
 
-        print(json.dumps({"status": "transcribing", "progress": 20}), flush=True)
+        emit_status("transcribing", 15, 
+                   message=f"Transcribing audio ({duration:.1f}s) with {device.upper()}...")
 
         # Configure transcription
         options = {
@@ -122,18 +137,22 @@ def main():
         # Run transcription
         result = model.transcribe(audio_path, **options)
 
+        emit_status("generating_srt", 90, message="Generating SRT subtitles...")
+
         # Generate SRT
         srt_content = generate_srt_from_result(result)
 
         with open(output_srt_path, 'w', encoding='utf-8') as f:
             f.write(srt_content)
 
-        print(json.dumps({"status": "completed", "progress": 100, "output": output_srt_path}), flush=True)
+        emit_status("completed", 100, message=f"Transcription complete: {os.path.basename(output_srt_path)}", 
+                   output=output_srt_path)
 
     except Exception as e:
         import traceback
         error_msg = str(e)
-        print(json.dumps({"status": "error", "error": error_msg, "traceback": traceback.format_exc()}), flush=True)
+        traceback_info = traceback.format_exc()
+        emit_status("error", 0, message=error_msg, traceback=traceback_info)
         sys.exit(1)
 
 
