@@ -33,7 +33,9 @@ def get_config_data() -> dict:
         "password_hash": pwd_context.hash(DEFAULT_PASSWORD),
         "model": settings.default_model,
         "device": settings.device,
-        "language": settings.default_language
+        "language": settings.default_language,
+        "diarization_model": settings.default_diarization_model,
+        "hf_token": ""
     }
 
 
@@ -132,11 +134,20 @@ def get_app_settings() -> dict:
         "model": config.get("model", settings.default_model),
         "device": config.get("device", settings.device),
         "language": config.get("language", settings.default_language),
-        "available_models": settings.available_models
+        "available_models": settings.available_models,
+        "diarization_model": config.get("diarization_model", settings.default_diarization_model),
+        "hf_token": config.get("hf_token", ""),
+        "available_diarization_models": settings.available_diarization_models,
     }
 
 
-def update_app_settings(model: Optional[str] = None, device: Optional[str] = None, language: Optional[str] = None) -> dict:
+def update_app_settings(
+    model: Optional[str] = None,
+    device: Optional[str] = None,
+    language: Optional[str] = None,
+    diarization_model: Optional[str] = None,
+    hf_token: Optional[str] = None,
+) -> dict:
     """Update application settings."""
     config = get_config_data()
 
@@ -146,6 +157,10 @@ def update_app_settings(model: Optional[str] = None, device: Optional[str] = Non
         config["device"] = device
     if language:
         config["language"] = language
+    if diarization_model and diarization_model in settings.available_diarization_models:
+        config["diarization_model"] = diarization_model
+    if hf_token is not None:
+        config["hf_token"] = hf_token
 
     save_config_data(config)
     return get_app_settings()

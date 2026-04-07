@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     default_model: str = "large-v3"
     device: str = "cuda"  # cuda, cpu, or auto
     default_language: str = "auto"
+    default_diarization_model: str = "pyannote/speaker-diarization-3.1"
+    hf_home: str = "/root/.cache/huggingface"
 
     # Paths
     data_dir: str = "/app/data"
@@ -71,6 +73,23 @@ class Settings(BaseSettings):
                 "accuracy": 4,
                 "speed": "~2x faster than large-v3",
                 "description": "Faster with good accuracy"
+            }
+        }
+
+    @property
+    def available_diarization_models(self) -> dict:
+        return {
+            "pyannote/speaker-diarization-3.1": {
+                "name": "Speaker Diarization 3.1",
+                "description": "Latest, highest accuracy"
+            },
+            "pyannote/speaker-diarization-3.0": {
+                "name": "Speaker Diarization 3.0",
+                "description": "Previous version, slightly lighter"
+            },
+            "pyannote/speaker-diarization": {
+                "name": "Speaker Diarization 2.x",
+                "description": "Base version, minimal resources"
             }
         }
     
