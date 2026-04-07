@@ -39,8 +39,14 @@ RUN pip3 install --no-cache-dir \
 # Stage 5: Install Whisper (without deps - torch already installed)
 RUN pip3 install --no-cache-dir --no-deps openai-whisper
 
-# Stage 5.5: Install pyannote for speaker diarization
-RUN pip3 install --no-cache-dir pyannote.audio
+# Stage 5.5: Install pyannote for speaker diarization (v3 to avoid torch major upgrade)
+RUN pip3 install --no-cache-dir "pyannote.audio<4"
+
+# Align torchaudio with preinstalled torch (2.5.1+cu121)
+RUN pip3 install --no-cache-dir --force-reinstall \
+    torchaudio==2.5.1 \
+    --no-deps \
+    --index-url https://download.pytorch.org/whl/cu121
 
 # Stage 6: Install audio libraries
 RUN pip3 install --no-cache-dir \

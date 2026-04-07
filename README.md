@@ -176,6 +176,24 @@ http://localhost:8000
 
 > ⚠️ **Важно!** Смените пароль в настройках после первого входа!
 
+### 🎤 Диаризация спикеров (HuggingFace access)
+
+Для работы диаризации используется `pyannote.audio`, а модели диаризации на HuggingFace являются **gated** (требуют принятия условий).
+
+Перед использованием:
+
+1. Откройте страницу модели и запросите/подтвердите доступ:  
+   - [`pyannote/speaker-diarization-3.1`](https://huggingface.co/pyannote/speaker-diarization-3.1)  
+   - (опционально) [`pyannote/speaker-diarization-3.0`](https://huggingface.co/pyannote/speaker-diarization-3.0)  
+   - (опционально) [`pyannote/speaker-diarization`](https://huggingface.co/pyannote/speaker-diarization)
+2. Создайте токен с правами `read`:  
+   [`https://huggingface.co/settings/tokens`](https://huggingface.co/settings/tokens)
+3. В приложении откройте **Settings** и заполните:
+   - **Diarization Model**
+   - **HuggingFace Token**
+
+Если доступ не выдан или токен не задан, диаризация не выполнится (в логах будет ошибка доступа к gated repo).
+
 ### 📊 Модели Whisper
 
 | Модель | Размер | Скорость | Качество | Рекомендация |
@@ -447,6 +465,24 @@ http://localhost:8000
 - 🔑 Password: `admin123`
 
 > ⚠️ **Important!** Change your password in settings after first login!
+
+### 🎤 Speaker Diarization (HuggingFace access)
+
+Speaker diarization uses `pyannote.audio`, and diarization models on HuggingFace are **gated** (you must accept terms first).
+
+Before using diarization:
+
+1. Open the model page and request/accept access:  
+   - [`pyannote/speaker-diarization-3.1`](https://huggingface.co/pyannote/speaker-diarization-3.1)  
+   - (optional) [`pyannote/speaker-diarization-3.0`](https://huggingface.co/pyannote/speaker-diarization-3.0)  
+   - (optional) [`pyannote/speaker-diarization`](https://huggingface.co/pyannote/speaker-diarization)
+2. Create a `read` token:  
+   [`https://huggingface.co/settings/tokens`](https://huggingface.co/settings/tokens)
+3. In the app **Settings**, fill:
+   - **Diarization Model**
+   - **HuggingFace Token**
+
+If access is not granted or token is missing, diarization will fail (logs will show gated-repo access error).
 
 ### 📊 Whisper Models
 
