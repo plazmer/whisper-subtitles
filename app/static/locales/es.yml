@@ -51,7 +51,9 @@ jobs:
     downloading: "Descargando"
     extracting: "Extrayendo audio"
     awaiting_track: "Selección de pista"
+    awaiting_speakers: "Speaker editing"
     transcribing: "Transcribiendo"
+    generating: "Generating subtitles"
     embedding: "Incrustando subtítulos"
     converting: "Convirtiendo"
     completed: "Completado"
@@ -60,7 +62,9 @@ jobs:
     pause: "Pausar"
     resume: "Reanudar"
     select_track: "Seleccionar pista"
+    edit_speakers: "Edit speakers"
     download_srt: "Descargar SRT"
+    download_ass: "Download ASS"
     download_video: "Descargar video"
     watch_online: "Ver en línea"
     pending_conversion: "Pendiente"
@@ -98,6 +102,10 @@ settings:
     hint: "0 = detección automática (todos los núcleos)"
     auto: "Auto"
   audio_language:
+  diarization_model:
+    label: "Diarization Model"
+  hf_token:
+    label: "HuggingFace Token"
     label: "Idioma de audio predeterminado"
   interface_language:
     label: "Idioma de la interfaz"
@@ -119,6 +127,12 @@ tracks:
     one: "canal"
     few: "canales"
     many: "canales"
+
+# Speaker Selection
+speakers:
+  title: "Speaker Editing"
+  keep_as_is: "Keep as is"
+  confirm: "Confirm"
 
 # File Selection
 files:
@@ -213,6 +227,8 @@ toast:
     no_video_files: "No se encontraron archivos de video en el torrent"
     load_files: "No se pudo cargar la lista de archivos"
     select_at_least_one: "Selecciona al menos un archivo"
+    load_speakers: "Failed to load speakers"
+    confirm_speakers: "Failed to confirm speakers"
   success:
     settings_saved: "Configuración guardada"
     password_changed: "Contraseña cambiada exitosamente"
@@ -222,6 +238,7 @@ toast:
     job_deleted: "Tarea eliminada"
     download_paused: "Descarga pausada"
     download_resumed: "Descarga reanudada"
+    speakers_confirmed: "Speakers confirmed, generating subtitles"
   info:
     track_remaining: "Pista seleccionada. Restantes: {count}"
     loading_files: "Cargando lista de archivos..."

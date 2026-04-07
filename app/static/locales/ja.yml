@@ -51,7 +51,9 @@ jobs:
     downloading: "ダウンロード中"
     extracting: "音声を抽出中"
     awaiting_track: "トラック選択"
+    awaiting_speakers: "Speaker editing"
     transcribing: "文字起こし中"
+    generating: "Generating subtitles"
     embedding: "字幕を埋め込み中"
     converting: "変換中"
     completed: "完了"
@@ -60,7 +62,9 @@ jobs:
     pause: "一時停止"
     resume: "再開"
     select_track: "トラックを選択"
+    edit_speakers: "Edit speakers"
     download_srt: "SRTをダウンロード"
+    download_ass: "Download ASS"
     download_video: "動画をダウンロード"
     watch_online: "オンラインで視聴"
     pending_conversion: "保留中"
@@ -98,6 +102,10 @@ settings:
     hint: "0 = 自動検出（全コア）"
     auto: "自動"
   audio_language:
+  diarization_model:
+    label: "Diarization Model"
+  hf_token:
+    label: "HuggingFace Token"
     label: "デフォルトの音声言語"
   interface_language:
     label: "インターフェース言語"
@@ -119,6 +127,12 @@ tracks:
     one: "チャンネル"
     few: "チャンネル"
     many: "チャンネル"
+
+# Speaker Selection
+speakers:
+  title: "Speaker Editing"
+  keep_as_is: "Keep as is"
+  confirm: "Confirm"
 
 # File Selection
 files:
@@ -213,6 +227,8 @@ toast:
     no_video_files: "トレントに動画ファイルが見つかりません"
     load_files: "ファイルリストを読み込めませんでした"
     select_at_least_one: "少なくとも1つのファイルを選択してください"
+    load_speakers: "Failed to load speakers"
+    confirm_speakers: "Failed to confirm speakers"
   success:
     settings_saved: "設定を保存しました"
     password_changed: "パスワードを変更しました"
@@ -222,6 +238,7 @@ toast:
     job_deleted: "タスクを削除しました"
     download_paused: "ダウンロードを一時停止しました"
     download_resumed: "ダウンロードを再開しました"
+    speakers_confirmed: "Speakers confirmed, generating subtitles"
   info:
     track_remaining: "トラックを選択しました。残り: {count}"
     loading_files: "ファイルリストを読み込み中..."

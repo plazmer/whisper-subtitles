@@ -51,7 +51,9 @@ jobs:
     downloading: "다운로드 중"
     extracting: "오디오 추출 중"
     awaiting_track: "트랙 선택"
+    awaiting_speakers: "Speaker editing"
     transcribing: "변환 중"
+    generating: "Generating subtitles"
     embedding: "자막 삽입 중"
     converting: "변환 중"
     completed: "완료"
@@ -60,7 +62,9 @@ jobs:
     pause: "일시 정지"
     resume: "재개"
     select_track: "트랙 선택"
+    edit_speakers: "Edit speakers"
     download_srt: "SRT 다운로드"
+    download_ass: "Download ASS"
     download_video: "동영상 다운로드"
     watch_online: "온라인 시청"
     pending_conversion: "대기 중"
@@ -98,6 +102,10 @@ settings:
     hint: "0 = 자동 감지 (모든 코어)"
     auto: "자동"
   audio_language:
+  diarization_model:
+    label: "Diarization Model"
+  hf_token:
+    label: "HuggingFace Token"
     label: "기본 오디오 언어"
   interface_language:
     label: "인터페이스 언어"
@@ -119,6 +127,12 @@ tracks:
     one: "채널"
     few: "채널"
     many: "채널"
+
+# Speaker Selection
+speakers:
+  title: "Speaker Editing"
+  keep_as_is: "Keep as is"
+  confirm: "Confirm"
 
 # File Selection
 files:
@@ -213,6 +227,8 @@ toast:
     no_video_files: "토렌트에서 동영상 파일을 찾을 수 없습니다"
     load_files: "파일 목록을 불러올 수 없습니다"
     select_at_least_one: "최소 하나의 파일을 선택하세요"
+    load_speakers: "Failed to load speakers"
+    confirm_speakers: "Failed to confirm speakers"
   success:
     settings_saved: "설정이 저장되었습니다"
     password_changed: "비밀번호가 변경되었습니다"
@@ -222,6 +238,7 @@ toast:
     job_deleted: "작업이 삭제되었습니다"
     download_paused: "다운로드가 일시 정지되었습니다"
     download_resumed: "다운로드가 재개되었습니다"
+    speakers_confirmed: "Speakers confirmed, generating subtitles"
   info:
     track_remaining: "트랙이 선택되었습니다. 남은 수: {count}"
     loading_files: "파일 목록 로딩 중..."

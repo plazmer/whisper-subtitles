@@ -51,7 +51,9 @@ jobs:
     downloading: "Жүктелуде"
     extracting: "Аудио шығару"
     awaiting_track: "Жол таңдау"
+    awaiting_speakers: "Speaker editing"
     transcribing: "Тану"
+    generating: "Generating subtitles"
     embedding: "Субтитрлерді енгізу"
     converting: "Түрлендіру"
     completed: "Дайын"
@@ -60,7 +62,9 @@ jobs:
     pause: "Кідірту"
     resume: "Жалғастыру"
     select_track: "Жолды таңдау"
+    edit_speakers: "Edit speakers"
     download_srt: "SRT жүктеу"
+    download_ass: "Download ASS"
     download_video: "Бейне жүктеу"
     watch_online: "Онлайн көру"
     pending_conversion: "Күтілуде"
@@ -98,6 +102,10 @@ settings:
     hint: "0 = автоанықтау (барлық ядролар)"
     auto: "Авто"
   audio_language:
+  diarization_model:
+    label: "Diarization Model"
+  hf_token:
+    label: "HuggingFace Token"
     label: "Әдепкі аудио тілі"
   interface_language:
     label: "Интерфейс тілі"
@@ -119,6 +127,12 @@ tracks:
     one: "арна"
     few: "арна"
     many: "арна"
+
+# Speaker Selection
+speakers:
+  title: "Speaker Editing"
+  keep_as_is: "Keep as is"
+  confirm: "Confirm"
 
 # File Selection
 files:
@@ -213,6 +227,8 @@ toast:
     no_video_files: "Торренттен бейне файлдар табылмады"
     load_files: "Файлдар тізімін жүктеу мүмкін болмады"
     select_at_least_one: "Кемінде бір файл таңдаңыз"
+    load_speakers: "Failed to load speakers"
+    confirm_speakers: "Failed to confirm speakers"
   success:
     settings_saved: "Баптаулар сақталды"
     password_changed: "Құпия сөз сәтті өзгертілді"
@@ -222,6 +238,7 @@ toast:
     job_deleted: "Тапсырма жойылды"
     download_paused: "Жүктеу кідіртілді"
     download_resumed: "Жүктеу жалғастырылды"
+    speakers_confirmed: "Speakers confirmed, generating subtitles"
   info:
     track_remaining: "Жол таңдалды. Қалды: {count}"
     loading_files: "Файлдар тізімі жүктелуде..."

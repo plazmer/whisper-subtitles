@@ -51,7 +51,9 @@ jobs:
     downloading: "جاري التنزيل"
     extracting: "استخراج الصوت"
     awaiting_track: "اختيار المسار"
+    awaiting_speakers: "Speaker editing"
     transcribing: "جاري النسخ"
+    generating: "Generating subtitles"
     embedding: "تضمين الترجمة"
     converting: "جاري التحويل"
     completed: "مكتمل"
@@ -60,7 +62,9 @@ jobs:
     pause: "إيقاف مؤقت"
     resume: "استئناف"
     select_track: "اختر المسار"
+    edit_speakers: "Edit speakers"
     download_srt: "تنزيل SRT"
+    download_ass: "Download ASS"
     download_video: "تنزيل الفيديو"
     watch_online: "مشاهدة أونلاين"
     pending_conversion: "قيد الانتظار"
@@ -98,6 +102,10 @@ settings:
     hint: "0 = كشف تلقائي (جميع الأنوية)"
     auto: "تلقائي"
   audio_language:
+  diarization_model:
+    label: "Diarization Model"
+  hf_token:
+    label: "HuggingFace Token"
     label: "لغة الصوت الافتراضية"
   interface_language:
     label: "لغة الواجهة"
@@ -119,6 +127,12 @@ tracks:
     one: "قناة"
     few: "قنوات"
     many: "قنوات"
+
+# Speaker Selection
+speakers:
+  title: "Speaker Editing"
+  keep_as_is: "Keep as is"
+  confirm: "Confirm"
 
 # File Selection
 files:
@@ -213,6 +227,8 @@ toast:
     no_video_files: "لم يتم العثور على ملفات فيديو في التورنت"
     load_files: "فشل في تحميل قائمة الملفات"
     select_at_least_one: "اختر ملفاً واحداً على الأقل"
+    load_speakers: "Failed to load speakers"
+    confirm_speakers: "Failed to confirm speakers"
   success:
     settings_saved: "تم حفظ الإعدادات"
     password_changed: "تم تغيير كلمة المرور بنجاح"
@@ -222,6 +238,7 @@ toast:
     job_deleted: "تم حذف المهمة"
     download_paused: "تم إيقاف التنزيل مؤقتاً"
     download_resumed: "تم استئناف التنزيل"
+    speakers_confirmed: "Speakers confirmed, generating subtitles"
   info:
     track_remaining: "تم اختيار المسار. المتبقي: {count}"
     loading_files: "جاري تحميل قائمة الملفات..."

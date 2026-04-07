@@ -51,7 +51,9 @@ jobs:
     downloading: "डाउनलोड हो रहा है"
     extracting: "ऑडियो निकाला जा रहा है"
     awaiting_track: "ट्रैक चयन"
+    awaiting_speakers: "Speaker editing"
     transcribing: "ट्रांसक्राइब हो रहा है"
+    generating: "Generating subtitles"
     embedding: "उपशीर्षक जोड़े जा रहे हैं"
     converting: "कन्वर्ट हो रहा है"
     completed: "पूर्ण"
@@ -60,7 +62,9 @@ jobs:
     pause: "रोकें"
     resume: "जारी रखें"
     select_track: "ट्रैक चुनें"
+    edit_speakers: "Edit speakers"
     download_srt: "SRT डाउनलोड करें"
+    download_ass: "Download ASS"
     download_video: "वीडियो डाउनलोड करें"
     watch_online: "ऑनलाइन देखें"
     pending_conversion: "लंबित"
@@ -98,6 +102,10 @@ settings:
     hint: "0 = स्वतः पहचान (सभी कोर)"
     auto: "ऑटो"
   audio_language:
+  diarization_model:
+    label: "Diarization Model"
+  hf_token:
+    label: "HuggingFace Token"
     label: "डिफ़ॉल्ट ऑडियो भाषा"
   interface_language:
     label: "इंटरफ़ेस भाषा"
@@ -119,6 +127,12 @@ tracks:
     one: "चैनल"
     few: "चैनल"
     many: "चैनल"
+
+# Speaker Selection
+speakers:
+  title: "Speaker Editing"
+  keep_as_is: "Keep as is"
+  confirm: "Confirm"
 
 # File Selection
 files:
@@ -213,6 +227,8 @@ toast:
     no_video_files: "टोरेंट में कोई वीडियो फ़ाइल नहीं मिली"
     load_files: "फ़ाइल सूची लोड नहीं हो सकी"
     select_at_least_one: "कम से कम एक फ़ाइल चुनें"
+    load_speakers: "Failed to load speakers"
+    confirm_speakers: "Failed to confirm speakers"
   success:
     settings_saved: "सेटिंग्स सहेजी गईं"
     password_changed: "पासवर्ड सफलतापूर्वक बदला गया"
@@ -222,6 +238,7 @@ toast:
     job_deleted: "कार्य हटाया गया"
     download_paused: "डाउनलोड रोका गया"
     download_resumed: "डाउनलोड जारी"
+    speakers_confirmed: "Speakers confirmed, generating subtitles"
   info:
     track_remaining: "ट्रैक चुना गया। शेष: {count}"
     loading_files: "फ़ाइल सूची लोड हो रही है..."

@@ -51,7 +51,9 @@ jobs:
     downloading: "Завантаження"
     extracting: "Витягування аудіо"
     awaiting_track: "Вибір доріжки"
+    awaiting_speakers: "Speaker editing"
     transcribing: "Розпізнавання"
+    generating: "Generating subtitles"
     embedding: "Вбудовування субтитрів"
     converting: "Конвертація"
     completed: "Готово"
@@ -60,7 +62,9 @@ jobs:
     pause: "Пауза"
     resume: "Продовжити"
     select_track: "Вибрати доріжку"
+    edit_speakers: "Edit speakers"
     download_srt: "Завантажити SRT"
+    download_ass: "Download ASS"
     download_video: "Завантажити відео"
     watch_online: "Дивитись онлайн"
     pending_conversion: "Очікується"
@@ -98,6 +102,10 @@ settings:
     hint: "0 = автовизначення (всі ядра)"
     auto: "Авто"
   audio_language:
+  diarization_model:
+    label: "Diarization Model"
+  hf_token:
+    label: "HuggingFace Token"
     label: "Мова аудіо за замовчуванням"
   interface_language:
     label: "Мова інтерфейсу"
@@ -119,6 +127,12 @@ tracks:
     one: "канал"
     few: "канали"
     many: "каналів"
+
+# Speaker Selection
+speakers:
+  title: "Speaker Editing"
+  keep_as_is: "Keep as is"
+  confirm: "Confirm"
 
 # File Selection
 files:
@@ -213,6 +227,8 @@ toast:
     no_video_files: "Відеофайли не знайдено в торенті"
     load_files: "Не вдалося завантажити список файлів"
     select_at_least_one: "Виберіть хоча б один файл"
+    load_speakers: "Failed to load speakers"
+    confirm_speakers: "Failed to confirm speakers"
   success:
     settings_saved: "Налаштування збережено"
     password_changed: "Пароль успішно змінено"
@@ -222,6 +238,7 @@ toast:
     job_deleted: "Завдання видалено"
     download_paused: "Завантаження призупинено"
     download_resumed: "Завантаження відновлено"
+    speakers_confirmed: "Speakers confirmed, generating subtitles"
   info:
     track_remaining: "Доріжку вибрано. Залишилось: {count}"
     loading_files: "Завантажуємо список файлів..."

@@ -51,7 +51,9 @@ jobs:
     downloading: "下载中"
     extracting: "提取音频"
     awaiting_track: "选择音轨"
+    awaiting_speakers: "Speaker editing"
     transcribing: "转录中"
+    generating: "Generating subtitles"
     embedding: "嵌入字幕"
     converting: "转换中"
     completed: "已完成"
@@ -60,7 +62,9 @@ jobs:
     pause: "暂停"
     resume: "继续"
     select_track: "选择音轨"
+    edit_speakers: "Edit speakers"
     download_srt: "下载 SRT"
+    download_ass: "Download ASS"
     download_video: "下载视频"
     watch_online: "在线观看"
     pending_conversion: "等待中"
@@ -98,6 +102,10 @@ settings:
     hint: "0 = 自动检测（所有核心）"
     auto: "自动"
   audio_language:
+  diarization_model:
+    label: "Diarization Model"
+  hf_token:
+    label: "HuggingFace Token"
     label: "默认音频语言"
   interface_language:
     label: "界面语言"
@@ -119,6 +127,12 @@ tracks:
     one: "声道"
     few: "声道"
     many: "声道"
+
+# Speaker Selection
+speakers:
+  title: "Speaker Editing"
+  keep_as_is: "Keep as is"
+  confirm: "Confirm"
 
 # File Selection
 files:
@@ -213,6 +227,8 @@ toast:
     no_video_files: "种子中未找到视频文件"
     load_files: "无法加载文件列表"
     select_at_least_one: "请至少选择一个文件"
+    load_speakers: "Failed to load speakers"
+    confirm_speakers: "Failed to confirm speakers"
   success:
     settings_saved: "设置已保存"
     password_changed: "密码已成功更改"
@@ -222,6 +238,7 @@ toast:
     job_deleted: "任务已删除"
     download_paused: "下载已暂停"
     download_resumed: "下载已继续"
+    speakers_confirmed: "Speakers confirmed, generating subtitles"
   info:
     track_remaining: "音轨已选择。剩余：{count}"
     loading_files: "正在加载文件列表..."
