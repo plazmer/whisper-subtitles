@@ -122,7 +122,7 @@ async def update_settings(request: SettingsUpdateRequest, user: dict = Depends(g
     """Update application settings."""
     return update_app_settings(
         model=request.model,
-        cpu_threads=request.cpu_threads,
+        device=request.device,
         language=request.language
     )
 
@@ -606,6 +606,7 @@ async def run_transcription_subprocess(
     output_srt_path: str,
     model_name: str,
     language: str,
+    device: str = "auto",
     progress_callback = None
 ) -> str:
     """
@@ -613,14 +614,15 @@ async def run_transcription_subprocess(
     Returns path to generated SRT file.
     """
     import sys
-    
+
     # Build command to run the worker
     cmd = [
         sys.executable, "-m", "app.tasks.transcribe_worker",
         audio_path,
         output_srt_path,
         model_name,
-        language
+        language,
+        device
     ]
     
     print(f"[TRANSCRIBE] Starting subprocess: {' '.join(cmd)}")
@@ -931,6 +933,7 @@ async def process_job(job_id: str):
                     srt_path,
                     model_name=current_settings["model"],
                     language=current_settings["language"],
+                    device=current_settings.get("device", "auto"),
                     progress_callback=update_transcribe_progress
                 )
                 

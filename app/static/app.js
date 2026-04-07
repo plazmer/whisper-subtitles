@@ -256,8 +256,11 @@ function renderSettings() {
 
     updateModelDescription();
 
-    $('#setting-threads').value = state.settings.cpu_threads;
-    $('#threads-value').textContent = state.settings.cpu_threads || i18n.t('settings.threads.auto');
+    // Set device selection
+    const deviceSelect = $('#setting-device');
+    if (deviceSelect) {
+        deviceSelect.value = state.settings.device || 'auto';
+    }
 
     $('#setting-language').value = state.settings.language;
 }
@@ -279,7 +282,7 @@ async function handleSaveSettings() {
     try {
         const settings = {
             model: $('#setting-model').value,
-            cpu_threads: parseInt($('#setting-threads').value),
+            device: $('#setting-device').value,
             language: $('#setting-language').value
         };
 
@@ -1032,9 +1035,6 @@ async function init() {
     $('#save-settings').addEventListener('click', handleSaveSettings);
     $('#password-form').addEventListener('submit', handleChangePassword);
     $('#setting-model').addEventListener('change', updateModelDescription);
-    $('#setting-threads').addEventListener('input', (e) => {
-        $('#threads-value').textContent = e.target.value === '0' ? i18n.t('settings.threads.auto') : e.target.value;
-    });
 
     // Modal close buttons
     $$('.modal-close, .modal-backdrop').forEach(el => {

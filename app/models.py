@@ -106,7 +106,7 @@ class PasswordChangeRequest(BaseModel):
 class SettingsUpdateRequest(BaseModel):
     """Settings update request model."""
     model: Optional[str] = None
-    cpu_threads: Optional[int] = None
+    device: Optional[str] = None
     language: Optional[str] = None
 
 

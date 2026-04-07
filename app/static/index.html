@@ -167,12 +167,13 @@
                     </div>
 
                     <div class="settings-section">
-                        <h3 data-i18n="settings.threads.label">CPU Threads</h3>
-                        <div class="threads-input">
-                            <input type="range" id="setting-threads" min="1" max="16" value="4">
-                            <span id="threads-value">4</span>
-                        </div>
-                        <p class="text-muted" data-i18n="settings.threads.hint">0 = auto-detect (all cores)</p>
+                        <h3 data-i18n="settings.device.label">Device</h3>
+                        <select id="setting-device" class="form-select">
+                            <option value="auto">Auto (CUDA if available)</option>
+                            <option value="cuda">NVIDIA GPU (CUDA)</option>
+                            <option value="cpu">CPU</option>
+                        </select>
+                        <p class="text-muted" data-i18n="settings.device.hint">Select device for transcription</p>
                     </div>
 
                     <div class="settings-section">

@@ -8,7 +8,8 @@
 
 [![License](https://img.shields.io/badge/License-Non--Commercial-red.svg)](LICENSE)
 [![Docker](https://img.shields.io/badge/Docker-Ready-blue.svg)](docker-compose.yml)
-[![OpenVINO](https://img.shields.io/badge/Intel-OpenVINO-0071C5.svg)](https://github.com/openvinotoolkit/openvino)
+[![NVIDIA GPU](https://img.shields.io/badge/NVIDIA-CUDA%2012.1-76B900.svg)](https://developer.nvidia.com/cuda-toolkit)
+[![OpenAI Whisper](https://img.shields.io/badge/OpenAI-Whisper-00A67E.svg)](https://github.com/openai/whisper)
 
 </div>
 
@@ -52,7 +53,7 @@
 - 🌍 **Документальные фильмы** — познавайте мир без барьеров
 - 🎙️ **Подкасты и интервью** — вся информация теперь в тексте
 
-Приложение использует передовую нейросеть **OpenAI Whisper**, оптимизированную для процессоров Intel через **OpenVINO**, что позволяет запустить его даже на недорогих мини-ПК.
+Приложение использует передовую нейросеть **OpenAI Whisper** с поддержкой **NVIDIA GPU** через **CUDA**, что позволяет значительно ускорить обработку видео.
 
 ### ✨ Возможности
 
@@ -65,7 +66,7 @@
 - 📝 **Экспорт субтитров** — скачивание в SRT формате
 - 🎬 **Вшивание субтитров** — субтитры добавляются как отдельная дорожка в видеофайл
 - 🎨 **Современный интерфейс** — адаптивный дизайн на 15 языках
-- ⚡ **Оптимизация Intel** — ускорение через OpenVINO
+- ⚡ **NVIDIA GPU ускорение** — CUDA обработка для высокой скорости
 - 🔒 **Безопасность** — авторизация с JWT токенами
 
 ### 📸 Интерфейс
@@ -116,12 +117,27 @@ https://github.com/user-attachments/assets/torrent_multi.mp4
 
 | Компонент | Минимум | Рекомендуется |
 |-----------|---------|---------------|
-| CPU | Intel N100 | Intel N150+ / Core i5+ |
+| GPU | NVIDIA с 4GB VRAM | NVIDIA с 8GB+ VRAM |
 | RAM | 4 GB | 8+ GB |
 | Диск | 10 GB | 50+ GB (для моделей и видео) |
-| ОС | Linux (Docker) | Ubuntu 22.04+ |
+| ОС | Linux (Docker + NVIDIA Container Toolkit) | Ubuntu 22.04+ |
 
 ### 🚀 Быстрый старт
+
+#### ⚠️ Предварительные требования
+
+Для работы с NVIDIA GPU вам потребуется:
+
+1. **NVIDIA GPU** с поддержкой CUDA и установленными драйверами
+2. **NVIDIA Container Toolkit** для Docker
+
+Установка NVIDIA Container Toolkit:
+
+```bash
+# Для Ubuntu/Debian
+sudo apt-get install -y nvidia-container-toolkit
+sudo systemctl restart docker
+```
 
 #### 1️⃣ Клонируйте репозиторий
 
@@ -130,7 +146,17 @@ git clone https://github.com/timoil/whisper-subtitles.git
 cd whisper-subtitles
 ```
 
-#### 2️⃣ Запустите Docker
+#### 2️⃣ Соберите базовый образ (один раз, ~10 минут)
+
+Базовый образ содержит все зависимости и собирается один раз:
+
+```bash
+docker build -f Dockerfile.base -t whisper-subtitles-base:latest .
+```
+
+#### 3️⃣ Соберите и запустите приложение (~5 секунд)
+
+Основной образ собираётся мгновенно — только копирует код:
 
 ```bash
 docker compose up -d
@@ -159,13 +185,12 @@ http://localhost:8000
 | `small` | 466 MB | ~10x | ⭐⭐⭐ | Баланс |
 | `medium` | 1.5 GB | ~5x | ⭐⭐⭐⭐ | Хорошее качество |
 | `large-v2` | 3 GB | ~3x | ⭐⭐⭐⭐⭐ | Максимальная точность |
-| `large-v3-int4` | 1 GB | ~6x | ⭐⭐⭐⭐ | Самый быстрый V3 |
-| `large-v3-int8` | 1.5 GB | ~4x | ⭐⭐⭐⭐⭐ | **Рекомендуется для Intel** |
-| `large-v3-fp16` | 3 GB | ~3x | ⭐⭐⭐⭐⭐ | Максимальное качество V3 |
+| `large-v3` | 3 GB | ~4x (GPU) | ⭐⭐⭐⭐⭐ | **Рекомендуется для NVIDIA** |
+| `large-v3-turbo` | 1.5 GB | ~8x (GPU) | ⭐⭐⭐⭐ | Быстрая обработка |
 
 ### 🔧 Расширенная настройка
 
-#### Docker Compose с GPU Intel
+#### Docker Compose с NVIDIA GPU
 
 ```yaml
 services:
@@ -177,14 +202,42 @@ services:
     volumes:
       - ./data:/app/data
       - ./models:/app/models
-    devices:
-      - /dev/dri:/dev/dri  # Для Intel GPU
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     environment:
       - SECRET_KEY=${SECRET_KEY}
-      - DEFAULT_MODEL=${DEFAULT_MODEL:-large-v3-int8}
-      - CPU_THREADS=${CPU_THREADS:-4}
+      - DEFAULT_MODEL=${DEFAULT_MODEL:-large-v3}
+      - DEVICE=${DEVICE:-auto}  # auto, cuda, cpu
     restart: unless-stopped
 ```
+
+#### Настройки устройства
+
+Переменная окружения `DEVICE` управляет использованием GPU:
+
+- `auto` — автоматически выбирает CUDA если доступна, иначе CPU
+- `cuda` — принудительно использовать NVIDIA GPU
+- `cpu` — принудительно использовать CPU
+
+#### Без Docker (локальная установка)
+
+```bash
+# Установка зависимостей
+pip install -r requirements.txt
+
+# Установка PyTorch с CUDA поддержкой (отдельно)
+pip install torch --index-url https://download.pytorch.org/whl/cu121
+
+# Запуск приложения
+uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+> **Примечание:** PyTorch устанавливается отдельно для использования правильной версии CUDA.
 
 #### Размещение за Nginx
 
@@ -272,7 +325,7 @@ ports:
 - 🌍 **Documentaries** — explore the world without barriers
 - 🎙️ **Podcasts and interviews** — all information now in text
 
-The application uses the cutting-edge **OpenAI Whisper** neural network, optimized for Intel processors via **OpenVINO**, allowing it to run even on affordable mini-PCs.
+The application uses the cutting-edge **OpenAI Whisper** neural network with **NVIDIA GPU** support via **CUDA**, significantly speeding up video processing.
 
 ### ✨ Features
 
@@ -285,7 +338,7 @@ The application uses the cutting-edge **OpenAI Whisper** neural network, optimiz
 - 📝 **Subtitle export** — download in SRT format
 - 🎬 **Subtitle embedding** — subtitles are added as a separate track in the video file
 - 🎨 **Modern interface** — responsive design in 15 languages
-- ⚡ **Intel optimization** — OpenVINO acceleration
+- ⚡ **NVIDIA GPU acceleration** — CUDA processing for high speed
 - 🔒 **Security** — JWT token authorization
 
 ### 📸 Interface
@@ -336,12 +389,27 @@ https://github.com/user-attachments/assets/torrent_multi.mp4
 
 | Component | Minimum | Recommended |
 |-----------|---------|-------------|
-| CPU | Intel N100 | Intel N150+ / Core i5+ |
+| GPU | NVIDIA with 4GB VRAM | NVIDIA with 8GB+ VRAM |
 | RAM | 4 GB | 8+ GB |
 | Storage | 10 GB | 50+ GB (for models and videos) |
-| OS | Linux (Docker) | Ubuntu 22.04+ |
+| OS | Linux (Docker + NVIDIA Container Toolkit) | Ubuntu 22.04+ |
 
 ### 🚀 Quick Start
+
+#### ⚠️ Prerequisites
+
+For NVIDIA GPU support, you need:
+
+1. **NVIDIA GPU** with CUDA support and drivers installed
+2. **NVIDIA Container Toolkit** for Docker
+
+Install NVIDIA Container Toolkit:
+
+```bash
+# For Ubuntu/Debian
+sudo apt-get install -y nvidia-container-toolkit
+sudo systemctl restart docker
+```
 
 #### 1️⃣ Clone the repository
 
@@ -350,7 +418,17 @@ git clone https://github.com/timoil/whisper-subtitles.git
 cd whisper-subtitles
 ```
 
-#### 2️⃣ Start Docker
+#### 2️⃣ Build base image (one time, ~10 minutes)
+
+The base image contains all dependencies and is built once:
+
+```bash
+docker build -f Dockerfile.base -t whisper-subtitles-base:latest .
+```
+
+#### 3️⃣ Build and run the application (~5 seconds)
+
+The main image builds instantly — it only copies code:
 
 ```bash
 docker compose up -d
@@ -379,13 +457,12 @@ http://localhost:8000
 | `small` | 466 MB | ~10x | ⭐⭐⭐ | Balance |
 | `medium` | 1.5 GB | ~5x | ⭐⭐⭐⭐ | Good quality |
 | `large-v2` | 3 GB | ~3x | ⭐⭐⭐⭐⭐ | Maximum accuracy |
-| `large-v3-int4` | 1 GB | ~6x | ⭐⭐⭐⭐ | Fastest V3 |
-| `large-v3-int8` | 1.5 GB | ~4x | ⭐⭐⭐⭐⭐ | **Recommended for Intel** |
-| `large-v3-fp16` | 3 GB | ~3x | ⭐⭐⭐⭐⭐ | Maximum quality V3 |
+| `large-v3` | 3 GB | ~4x (GPU) | ⭐⭐⭐⭐⭐ | **Recommended for NVIDIA** |
+| `large-v3-turbo` | 1.5 GB | ~8x (GPU) | ⭐⭐⭐⭐ | Fast processing |
 
 ### 🔧 Advanced Configuration
 
-#### Docker Compose with Intel GPU
+#### Docker Compose with NVIDIA GPU
 
 ```yaml
 services:
@@ -397,14 +474,42 @@ services:
     volumes:
       - ./data:/app/data
       - ./models:/app/models
-    devices:
-      - /dev/dri:/dev/dri  # For Intel GPU
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     environment:
       - SECRET_KEY=${SECRET_KEY}
-      - DEFAULT_MODEL=${DEFAULT_MODEL:-large-v3-int8}
-      - CPU_THREADS=${CPU_THREADS:-4}
+      - DEFAULT_MODEL=${DEFAULT_MODEL:-large-v3}
+      - DEVICE=${DEVICE:-auto}  # auto, cuda, cpu
     restart: unless-stopped
 ```
+
+#### Device Settings
+
+The `DEVICE` environment variable controls GPU usage:
+
+- `auto` — automatically selects CUDA if available, otherwise CPU
+- `cuda` — force use NVIDIA GPU
+- `cpu` — force use CPU
+
+#### Without Docker (Local Installation)
+
+```bash
+# Install dependencies
+pip install -r requirements.txt
+
+# Install PyTorch with CUDA support (separately)
+pip install torch --index-url https://download.pytorch.org/whl/cu121
+
+# Run the application
+uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+> **Note:** PyTorch is installed separately to use the correct CUDA version.
 
 #### Nginx Reverse Proxy
 

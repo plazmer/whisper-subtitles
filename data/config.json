@@ -1,0 +1,6 @@
+{
+  "password_hash": "$2b$12$B6shJLMTenCDUYQRKgS4zeUoK/OkyNirS2ILUaqqj4dbOvTMd2xYe",
+  "model": "large-v3-turbo",
+  "device": "cuda",
+  "language": "auto"
+}

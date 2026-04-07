@@ -32,7 +32,7 @@ def get_config_data() -> dict:
     return {
         "password_hash": pwd_context.hash(DEFAULT_PASSWORD),
         "model": settings.default_model,
-        "cpu_threads": settings.cpu_threads,
+        "device": settings.device,
         "language": settings.default_language
     }
 
@@ -130,22 +130,22 @@ def get_app_settings() -> dict:
     config = get_config_data()
     return {
         "model": config.get("model", settings.default_model),
-        "cpu_threads": config.get("cpu_threads", settings.cpu_threads),
+        "device": config.get("device", settings.device),
         "language": config.get("language", settings.default_language),
         "available_models": settings.available_models
     }
 
 
-def update_app_settings(model: Optional[str] = None, cpu_threads: Optional[int] = None, language: Optional[str] = None) -> dict:
+def update_app_settings(model: Optional[str] = None, device: Optional[str] = None, language: Optional[str] = None) -> dict:
     """Update application settings."""
     config = get_config_data()
-    
+
     if model and model in settings.available_models:
         config["model"] = model
-    if cpu_threads is not None and cpu_threads >= 0:
-        config["cpu_threads"] = cpu_threads
+    if device is not None and device in ["cuda", "cpu", "auto"]:
+        config["device"] = device
     if language:
         config["language"] = language
-    
+
     save_config_data(config)
     return get_app_settings()
