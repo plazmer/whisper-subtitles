@@ -666,7 +666,8 @@ async def run_transcription_subprocess(
 
                 print(f"[TRANSCRIBE] {status}: {progress}% - {message}")
 
-                if progress_callback and progress > 0:
+                # Send progress update if there's a callback and meaningful data
+                if progress_callback and (progress > 0 or status in ("loading_model", "model_loaded", "loading_audio", "warning")):
                     await progress_callback(progress, status, message)
 
                 if status == "completed":
