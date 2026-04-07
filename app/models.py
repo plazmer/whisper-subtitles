@@ -11,6 +11,8 @@ class JobStatus(str, Enum):
     EXTRACTING = "extracting"
     AWAITING_TRACK = "awaiting_track"
     TRANSCRIBING = "transcribing"
+    AWAITING_SPEAKERS = "awaiting_speakers"
+    GENERATING = "generating"
     EMBEDDING = "embedding"
     CONVERTING = "converting"  # For streaming version creation
     COMPLETED = "completed"
@@ -69,6 +71,9 @@ class Job(BaseModel):
     embed_subtitles: bool = False
     language: str = "auto"
     model: str = "large-v3-int8"
+    speakers: Optional[str] = None
+    diarization_segments: Optional[str] = None
+    merged_segments: Optional[str] = None
     
     # Error info
     error: Optional[str] = None
@@ -112,6 +117,8 @@ class SettingsUpdateRequest(BaseModel):
     model: Optional[str] = None
     device: Optional[str] = None
     language: Optional[str] = None
+    diarization_model: Optional[str] = None
+    hf_token: Optional[str] = None
 
 
 class JobCreateRequest(BaseModel):
@@ -140,4 +147,9 @@ class TorrentFileInfo(BaseModel):
 class FileSelectionRequest(BaseModel):
     """Request to start download with selected files."""
     selected_indices: List[int]  # 1-based indices of files to download
+
+
+class SpeakerUpdateRequest(BaseModel):
+    """Request to update speaker names and colors."""
+    speakers: dict
 
