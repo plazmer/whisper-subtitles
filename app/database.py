@@ -52,6 +52,18 @@ async def init_db():
             await db.execute("ALTER TABLE jobs ADD COLUMN status_message TEXT")
         except:
             pass
+        try:
+            await db.execute("ALTER TABLE jobs ADD COLUMN speakers TEXT")
+        except:
+            pass
+        try:
+            await db.execute("ALTER TABLE jobs ADD COLUMN diarization_segments TEXT")
+        except:
+            pass
+        try:
+            await db.execute("ALTER TABLE jobs ADD COLUMN merged_segments TEXT")
+        except:
+            pass
         await db.commit()
 
 
@@ -65,15 +77,15 @@ async def create_job(job: Job) -> Job:
             INSERT INTO jobs (id, type, status, progress, created_at, updated_at,
                             source, files, embed_subtitles, language, model, error,
                             is_group, group_name, selected_indices, download_speed, eta, is_paused,
-                            status_message)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            status_message, speakers, diarization_segments, merged_segments)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             job.id, job.type.value, job.status.value, job.progress,
             job.created_at.isoformat(), job.updated_at.isoformat(),
             job.source, files_json, int(job.embed_subtitles),
             job.language, job.model, job.error, int(job.is_group), job.group_name,
             indices_json, job.download_speed, job.eta, int(job.is_paused),
-            status_message
+            status_message, job.speakers, job.diarization_segments, job.merged_segments
         ))
         await db.commit()
     return job
@@ -112,13 +124,15 @@ async def update_job(job: Job) -> Job:
                 status = ?, progress = ?, updated_at = ?, files = ?,
                 embed_subtitles = ?, language = ?, model = ?, error = ?,
                 is_group = ?, group_name = ?, selected_indices = ?,
-                download_speed = ?, eta = ?, is_paused = ?, status_message = ?
+                download_speed = ?, eta = ?, is_paused = ?, status_message = ?,
+                speakers = ?, diarization_segments = ?, merged_segments = ?
             WHERE id = ?
         """, (
             job.status.value, job.progress, job.updated_at.isoformat(),
             files_json, int(job.embed_subtitles), job.language, job.model,
             job.error, int(job.is_group), job.group_name, indices_json,
-            job.download_speed, job.eta, int(job.is_paused), status_message, job.id
+            job.download_speed, job.eta, int(job.is_paused), status_message,
+            job.speakers, job.diarization_segments, job.merged_segments, job.id
         ))
         await db.commit()
     return job
@@ -192,5 +206,8 @@ def _row_to_job(row: dict) -> Job:
         selected_indices=selected_indices,
         download_speed=row.get('download_speed'),
         eta=row.get('eta'),
-        is_paused=bool(row.get('is_paused', 0))
+        is_paused=bool(row.get('is_paused', 0)),
+        speakers=row.get('speakers'),
+        diarization_segments=row.get('diarization_segments'),
+        merged_segments=row.get('merged_segments')
     )
