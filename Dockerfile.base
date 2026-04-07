@@ -42,6 +42,9 @@ RUN pip3 install --no-cache-dir --no-deps openai-whisper
 # Stage 5.5: Install pyannote for speaker diarization (v3 to avoid torch major upgrade)
 RUN pip3 install --no-cache-dir "pyannote.audio<4"
 
+# pyannote 3.x still relies on `use_auth_token` path; keep huggingface_hub below 1.0
+RUN pip3 install --no-cache-dir "huggingface_hub<1.0"
+
 # Align torchaudio with preinstalled torch (2.5.1+cu121)
 RUN pip3 install --no-cache-dir --force-reinstall \
     torchaudio==2.5.1 \

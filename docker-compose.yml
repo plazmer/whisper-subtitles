@@ -21,6 +21,9 @@ services:
       - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
       - DEFAULT_MODEL=${DEFAULT_MODEL:-large-v3}
       - DEVICE=${DEVICE:-auto}
+      - HTTP_PROXY=${HTTP_PROXY:-http://192.168.78.240:10809}
+      - HTTPS_PROXY=${HTTPS_PROXY:-http://192.168.78.240:10809}
+      - NO_PROXY=${NO_PROXY:-localhost,127.0.0.1,::1}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]

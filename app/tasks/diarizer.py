@@ -25,6 +25,11 @@ def diarize(audio_path: str, model_name: str, hf_token: str, device: str = "cuda
         device = "cuda" if torch.cuda.is_available() else "cpu"
 
     pipeline = Pipeline.from_pretrained(model_name, use_auth_token=hf_token)
+    if pipeline is None:
+        raise RuntimeError(
+            "Не удалось загрузить модель диаризации. "
+            "Проверьте HF-токен и примите условия модели на HuggingFace."
+        )
     pipeline.to(torch.device(device))
     diarization = pipeline(audio_path)
 
