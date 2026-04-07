@@ -209,6 +209,73 @@ async def embed_subtitles(
     return output_path
 
 
+async def embed_subtitles_diarized(
+    video_path: str,
+    ass_path: str,
+    srt_path: str,
+    output_path: str,
+    progress_callback=None
+) -> str:
+    """Embed ASS (default) and SRT (fallback) subtitle tracks into MKV."""
+    cmd = [
+        'ffmpeg',
+        '-y',
+        '-i', video_path,
+        '-i', ass_path,
+        '-i', srt_path,
+        '-map', '0:v',
+        '-map', '0:a',
+        '-map', '1:0',
+        '-map', '2:0',
+        '-c:v', 'copy',
+        '-c:a', 'copy',
+        '-c:s:0', 'ass',
+        '-c:s:1', 'srt',
+        '-metadata:s:s:0', 'language=rus',
+        '-metadata:s:s:0', 'title=AI Generated (colored)',
+        '-metadata:s:s:1', 'language=rus',
+        '-metadata:s:s:1', 'title=AI Generated (plain)',
+        '-disposition:s:0', 'default',
+        '-disposition:s:1', '0',
+        '-progress', 'pipe:1',
+        output_path
+    ]
+
+    process = await asyncio.create_subprocess_exec(
+        *cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE
+    )
+
+    duration = await get_video_duration(video_path)
+    stderr_lines = []
+    stderr_task = asyncio.create_task(_drain_stderr(process.stderr, stderr_lines))
+
+    while True:
+        line = await process.stdout.readline()
+        if not line:
+            break
+
+        line_str = line.decode('utf-8', errors='ignore').strip()
+        if line_str.startswith('out_time_ms='):
+            try:
+                current_ms = int(line_str.split('=')[1])
+                current_sec = current_ms / 1000000
+                if duration > 0 and progress_callback:
+                    progress = min(100, (current_sec / duration) * 100)
+                    await progress_callback(progress)
+            except:
+                pass
+
+    await stderr_task
+    await process.wait()
+
+    if process.returncode != 0:
+        raise Exception(f"ffmpeg failed: {''.join(stderr_lines)}")
+
+    return output_path
+
+
 async def get_video_resolution(video_path: str) -> tuple[int, int]:
     """Get video resolution (width, height)."""
     cmd = [
@@ -242,7 +309,8 @@ async def create_streaming_version(
     output_path: str,
     max_height: int = 1080,
     progress_callback=None,
-    is_cancelled=None  # Callback to check if job was cancelled
+    is_cancelled=None,  # Callback to check if job was cancelled
+    skip_vtt: bool = False,
 ) -> str:
     """
     Create a streaming-ready MP4 version by remuxing (not re-encoding).
@@ -316,9 +384,10 @@ async def create_streaming_version(
         print(f"[STREAMING] FFmpeg failed: {error_msg}")
         raise Exception(f"ffmpeg remux failed: {error_msg}")
     
-    # Also create WebVTT file for HTML5 subtitles
-    vtt_path = srt_path.rsplit('.', 1)[0] + '.vtt'
-    await convert_srt_to_vtt(srt_path, vtt_path)
+    if not skip_vtt:
+        # Also create WebVTT file for HTML5 subtitles
+        vtt_path = srt_path.rsplit('.', 1)[0] + '.vtt'
+        await convert_srt_to_vtt(srt_path, vtt_path)
     
     print(f"[STREAMING] Fast remux complete: {output_path}")
     return output_path
