@@ -7,6 +7,7 @@ from typing import Optional
 from contextlib import asynccontextmanager
 import zipfile
 import io
+import json
 
 from fastapi import FastAPI, HTTPException, Depends, UploadFile, File, Form, Response, BackgroundTasks
 from fastapi.staticfiles import StaticFiles
@@ -23,10 +24,12 @@ from app.models import (
     Job, JobFile, JobStatus, JobType, AudioTrack,
     LoginRequest, LoginResponse, PasswordChangeRequest,
     SettingsUpdateRequest, JobCreateRequest, TrackSelectionRequest,
-    TorrentFileInfo, FileSelectionRequest
+    TorrentFileInfo, FileSelectionRequest, SpeakerUpdateRequest
 )
 from app.tasks.downloader import download_url, download_torrent, get_torrent_files
-from app.tasks.extractor import get_audio_tracks, extract_audio, embed_subtitles
+from app.tasks.extractor import (
+    get_audio_tracks, extract_audio, embed_subtitles, embed_subtitles_diarized, create_streaming_version
+)
 from app.tasks.transcriber import transcribe_with_progress
 
 
@@ -123,7 +126,9 @@ async def update_settings(request: SettingsUpdateRequest, user: dict = Depends(g
     return update_app_settings(
         model=request.model,
         device=request.device,
-        language=request.language
+        language=request.language,
+        diarization_model=request.diarization_model,
+        hf_token=request.hf_token,
     )
 
 
@@ -153,8 +158,6 @@ async def get_job_details(job_id: str, user: dict = Depends(get_current_user)):
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     return job.model_dump()
-
-import json
 
 @app.post("/api/jobs")
 async def create_new_job(
@@ -318,6 +321,55 @@ async def select_audio_track(
     return job.model_dump()
 
 
+@app.get("/api/jobs/{job_id}/speakers")
+async def get_speakers(job_id: str, user: dict = Depends(get_current_user)):
+    """Get current speakers and examples for speaker-editing UI."""
+    job = await get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if not job.speakers or not job.merged_segments:
+        raise HTTPException(status_code=400, detail="No diarization data")
+
+    speakers_dict = json.loads(job.speakers)
+    merged = json.loads(job.merged_segments)
+    from app.tasks.diarizer import get_speaker_examples
+    examples = get_speaker_examples(merged, speakers_dict)
+    return {"speakers": speakers_dict, "examples": examples}
+
+
+@app.put("/api/jobs/{job_id}/speakers")
+async def update_speakers(
+    job_id: str,
+    request: SpeakerUpdateRequest,
+    user: dict = Depends(get_current_user)
+):
+    """Update speaker labels and colors."""
+    job = await get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job.status != JobStatus.AWAITING_SPEAKERS:
+        raise HTTPException(status_code=400, detail="Job is not awaiting speaker confirmation")
+
+    job.speakers = json.dumps(request.speakers, ensure_ascii=False)
+    await update_job(job)
+    return {"status": "ok"}
+
+
+@app.post("/api/jobs/{job_id}/speakers/confirm")
+async def confirm_speakers(job_id: str, user: dict = Depends(get_current_user)):
+    """Confirm speakers and continue subtitle generation."""
+    job = await get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job.status != JobStatus.AWAITING_SPEAKERS:
+        raise HTTPException(status_code=400, detail="Job is not awaiting speaker confirmation")
+
+    job.status = JobStatus.GENERATING
+    await update_job(job)
+    asyncio.create_task(_finalize_diarized_job(job.id))
+    return {"status": "ok"}
+
+
 @app.delete("/api/jobs/{job_id}")
 async def delete_job_route(job_id: str, user: dict = Depends(get_current_user)):
     """Delete a job and its associated files, kill any running processes."""
@@ -457,6 +509,62 @@ async def download_srt(job_id: str, file_id: Optional[str] = None, user: dict = 
         )
     
     raise HTTPException(status_code=404, detail="SRT file not found")
+
+
+@app.get("/api/jobs/{job_id}/download/ass")
+async def download_ass(job_id: str, file_id: Optional[str] = None, user: dict = Depends(get_current_user)):
+    """Download ASS subtitle file."""
+    job = await get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job.status not in [JobStatus.COMPLETED, JobStatus.CONVERTING, JobStatus.EMBEDDING]:
+        raise HTTPException(status_code=400, detail="Job not completed")
+
+    def resolve_ass_path(job_file: JobFile) -> Optional[str]:
+        if not job_file.srt_path:
+            return None
+        ass_path = job_file.srt_path.rsplit('.', 1)[0] + '.ass'
+        if os.path.exists(ass_path):
+            return ass_path
+        return None
+
+    if file_id:
+        for file in job.files:
+            if file.id == file_id:
+                ass_path = resolve_ass_path(file)
+                if ass_path:
+                    return FileResponse(
+                        ass_path,
+                        media_type="text/x-ssa",
+                        filename=os.path.basename(ass_path),
+                    )
+                break
+        raise HTTPException(status_code=404, detail="ASS file not found")
+
+    if len(job.files) > 1:
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            for file in job.files:
+                ass_path = resolve_ass_path(file)
+                if ass_path:
+                    zip_file.write(ass_path, os.path.basename(ass_path))
+        zip_buffer.seek(0)
+        return StreamingResponse(
+            zip_buffer,
+            media_type="application/zip",
+            headers={"Content-Disposition": f"attachment; filename=subtitles_ass_{job_id}.zip"}
+        )
+
+    if job.files:
+        ass_path = resolve_ass_path(job.files[0])
+        if ass_path:
+            return FileResponse(
+                ass_path,
+                media_type="text/x-ssa",
+                filename=os.path.basename(ass_path),
+            )
+
+    raise HTTPException(status_code=404, detail="ASS file not found")
 
 
 @app.get("/api/jobs/{job_id}/download/video")
@@ -721,6 +829,164 @@ async def run_transcription_subprocess(
 
 
 # ============================================================================
+# Speaker Diarization Helpers
+# ============================================================================
+
+async def _generate_and_embed(job: Job, file: JobFile, video_path: str, current_settings: dict):
+    """Generate subtitle artifacts and embed them into output media."""
+    output_dir = os.path.join(settings.output_dir, job.id)
+    os.makedirs(output_dir, exist_ok=True)
+    base_name = os.path.splitext(file.filename)[0]
+    srt_path = file.srt_path
+
+    if not srt_path:
+        raise Exception("SRT path is not set")
+
+    if job.merged_segments and job.speakers:
+        merged = json.loads(job.merged_segments)
+        speakers_dict = json.loads(job.speakers)
+
+        from app.tasks.subtitle_generator import (
+            generate_ass,
+            generate_srt_with_speakers,
+            generate_vtt_with_speakers,
+        )
+
+        ass_path = os.path.join(output_dir, f"{base_name}.ass")
+        with open(ass_path, "w", encoding="utf-8") as f:
+            f.write(generate_ass(merged, speakers_dict))
+
+        with open(srt_path, "w", encoding="utf-8") as f:
+            f.write(generate_srt_with_speakers(merged, speakers_dict))
+
+        vtt_path = srt_path.rsplit(".", 1)[0] + ".vtt"
+        with open(vtt_path, "w", encoding="utf-8") as f:
+            f.write(generate_vtt_with_speakers(merged, speakers_dict))
+
+        if job.embed_subtitles:
+            file.status_message = f"Embedding subtitles: {file.filename}"
+            job.status = JobStatus.EMBEDDING
+            await update_job(job)
+
+            output_video = os.path.join(output_dir, f"{base_name}_subtitled.mkv")
+            await embed_subtitles_diarized(video_path, ass_path, srt_path, output_video)
+            file.output_path = output_video
+
+            file.status = JobStatus.EMBEDDING
+            file.status_message = None
+            await update_job(job)
+
+            job.status = JobStatus.CONVERTING
+            file.status = JobStatus.CONVERTING
+            file.status_message = f"Creating streaming version: {file.filename}"
+            file.progress = 0
+            await update_job(job)
+
+            streaming_video = os.path.join(output_dir, f"{base_name}_streaming.mp4")
+
+            async def update_conversion_progress(progress):
+                file.progress = progress
+                await update_job(job)
+
+            try:
+                await create_streaming_version(
+                    output_video,
+                    srt_path,
+                    streaming_video,
+                    max_height=1080,
+                    progress_callback=update_conversion_progress,
+                    is_cancelled=lambda: job.id in cancelled_jobs,
+                    skip_vtt=True,
+                )
+                file.streaming_path = streaming_video
+            except Exception as e:
+                print(f"[STREAMING] Failed: {e}")
+    else:
+        if job.embed_subtitles:
+            file.status_message = f"Embedding subtitles: {file.filename}"
+            job.status = JobStatus.EMBEDDING
+            await update_job(job)
+
+            output_video = os.path.join(output_dir, f"{base_name}_subtitled.mkv")
+            await embed_subtitles(video_path, srt_path, output_video)
+            file.output_path = output_video
+
+            file.status = JobStatus.EMBEDDING
+            file.status_message = None
+            await update_job(job)
+
+            job.status = JobStatus.CONVERTING
+            file.status = JobStatus.CONVERTING
+            file.status_message = f"Creating streaming version: {file.filename}"
+            file.progress = 0
+            await update_job(job)
+
+            streaming_video = os.path.join(output_dir, f"{base_name}_streaming.mp4")
+
+            async def update_conversion_progress(progress):
+                file.progress = progress
+                await update_job(job)
+
+            try:
+                await create_streaming_version(
+                    output_video,
+                    srt_path,
+                    streaming_video,
+                    max_height=1080,
+                    progress_callback=update_conversion_progress,
+                    is_cancelled=lambda: job.id in cancelled_jobs,
+                )
+                file.streaming_path = streaming_video
+            except Exception as e:
+                print(f"[STREAMING] Failed: {e}")
+
+    file.status = JobStatus.COMPLETED
+    file.progress = 100
+
+
+async def _finalize_diarized_job(job_id: str):
+    """Continue pipeline after speaker names were confirmed."""
+    try:
+        job = await get_job(job_id)
+        if not job:
+            return
+
+        current_settings = get_app_settings()
+        for file in job.files:
+            if file.status != JobStatus.AWAITING_SPEAKERS:
+                continue
+            video_path = find_video_file(job, file)
+            if not video_path:
+                file.status = JobStatus.FAILED
+                file.error = "Video file not found"
+                continue
+            await _generate_and_embed(job, file, video_path, current_settings)
+            await update_job(job)
+
+        all_completed = all(f.status == JobStatus.COMPLETED for f in job.files)
+        any_failed = any(f.status == JobStatus.FAILED for f in job.files)
+        if all_completed:
+            job.status = JobStatus.COMPLETED
+            job.progress = 100
+        elif any_failed:
+            failed_count = sum(1 for f in job.files if f.status == JobStatus.FAILED)
+            if failed_count == len(job.files):
+                job.status = JobStatus.FAILED
+                job.error = "All files failed to process"
+            else:
+                job.status = JobStatus.COMPLETED
+                job.error = f"{failed_count} file(s) failed"
+        await update_job(job)
+    except Exception as e:
+        print(f"[ERROR] Finalize diarized job failed: {e}")
+        job = await get_job(job_id)
+        if job:
+            job.status = JobStatus.FAILED
+            job.error = str(e)
+            await update_job(job)
+
+
+# ============================================================================
 # Background Job Processing
 # ============================================================================
 
@@ -730,7 +996,14 @@ async def resume_pending_jobs():
     jobs = await get_all_jobs()
     
     for job in jobs:
-        if job.status in [JobStatus.PENDING, JobStatus.DOWNLOADING, JobStatus.EXTRACTING, JobStatus.TRANSCRIBING, JobStatus.CONVERTING]:
+        if job.status in [
+            JobStatus.PENDING,
+            JobStatus.DOWNLOADING,
+            JobStatus.EXTRACTING,
+            JobStatus.TRANSCRIBING,
+            JobStatus.CONVERTING,
+            JobStatus.GENERATING,
+        ]:
             if job.id not in processing_jobs:
                 await queue_job(job.id)
 
@@ -958,65 +1231,48 @@ async def process_job(job_id: str):
                 )
                 
                 file.srt_path = srt_path
-                
-                # Embed subtitles (always enabled now)
-                print(f"[DEBUG] job.embed_subtitles = {job.embed_subtitles}, video_path = {video_path}, srt_path = {srt_path}")
-                if job.embed_subtitles:
-                    # Validate SRT file exists and has content
-                    if not os.path.exists(srt_path) or os.path.getsize(srt_path) == 0:
-                        raise Exception(f"Transcription failed: SRT file is empty or missing ({srt_path})")
-
-                    file.status_message = f"Embedding subtitles: {file.filename}"
-                    job.status = JobStatus.EMBEDDING
+                segments_json_path = srt_path.rsplit('.', 1)[0] + '.segments.json'
+                hf_token = current_settings.get("hf_token", "")
+                if hf_token and os.path.exists(segments_json_path):
+                    file.status_message = f"Diarizing speakers: {file.filename}"
+                    job.status_message = f"Diarizing speakers: {file.filename}"
                     await update_job(job)
 
-                    output_video = os.path.join(output_dir, f"{base_name}_subtitled.mkv")
-                    print(f"[EMBED] Starting embed_subtitles: {video_path} + {srt_path} -> {output_video}")
-                    await embed_subtitles(video_path, srt_path, output_video)
-                    print(f"[EMBED] Completed: {output_video}, exists={os.path.exists(output_video)}")
-                    file.output_path = output_video
+                    diar_model = current_settings.get("diarization_model", settings.default_diarization_model)
+                    diar_device = current_settings.get("device", "auto")
 
-                    # CRITICAL: Save output_path to DB immediately so it's available for download
-                    job.status = JobStatus.EMBEDDING
-                    file.status = JobStatus.EMBEDDING
-                    file.status_message = None  # Clear message
-                    await update_job(job)
-                    print(f"[EMBED] Saved output_path to DB: {file.output_path}")
+                    from app.tasks.diarizer import (
+                        diarize,
+                        merge_transcription_with_diarization,
+                        assign_default_speakers,
+                    )
 
-                    # Create streaming version with burned-in subtitles for online viewing
-                    job.status = JobStatus.CONVERTING
-                    file.status = JobStatus.CONVERTING
-                    file.status_message = f"Creating streaming version: {file.filename}"
-                    file.progress = 0  # Reset progress for conversion phase
+                    loop = asyncio.get_event_loop()
+                    diarization_segments = await loop.run_in_executor(
+                        None,
+                        diarize,
+                        audio_path,
+                        diar_model,
+                        hf_token,
+                        diar_device,
+                    )
+
+                    with open(segments_json_path, 'r', encoding='utf-8') as f:
+                        whisper_segments = json.load(f)
+
+                    merged = merge_transcription_with_diarization(whisper_segments, diarization_segments)
+                    speakers_dict = assign_default_speakers(merged)
+
+                    job.diarization_segments = json.dumps(diarization_segments, ensure_ascii=False)
+                    job.merged_segments = json.dumps(merged, ensure_ascii=False)
+                    job.speakers = json.dumps(speakers_dict, ensure_ascii=False)
+
+                    file.status = JobStatus.AWAITING_SPEAKERS
+                    file.status_message = "Awaiting speaker confirmation"
+                    job.status = JobStatus.AWAITING_SPEAKERS
                     await update_job(job)
-                    
-                    from app.tasks.extractor import create_streaming_version
-                    streaming_video = os.path.join(output_dir, f"{base_name}_streaming.mp4")
-                    
-                    async def update_conversion_progress(progress):
-                        # Conversion progress 0-100%
-                        file.progress = progress
-                        await update_job(job)
-                    
-                    try:
-                        await create_streaming_version(
-                            output_video,
-                            srt_path,
-                            streaming_video,
-                            max_height=1080,
-                            progress_callback=update_conversion_progress,
-                            is_cancelled=lambda: job_id in cancelled_jobs
-                        )
-                        file.streaming_path = streaming_video
-                        print(f"[STREAMING] Created: {streaming_video}")
-                    except Exception as e:
-                        print(f"[STREAMING] Failed to create streaming version: {e}")
-                        import traceback
-                        traceback.print_exc()
-                        # Continue without streaming version - not critical
-                
-                file.status = JobStatus.COMPLETED
-                file.progress = 100
+                else:
+                    await _generate_and_embed(job, file, video_path, current_settings)
                 
                 # Clean up temp audio
                 if os.path.exists(audio_path):
@@ -1044,10 +1300,14 @@ async def process_job(job_id: str):
         # Final status
         all_completed = all(f.status == JobStatus.COMPLETED for f in job.files)
         any_failed = any(f.status == JobStatus.FAILED for f in job.files)
+        any_awaiting_speakers = any(f.status == JobStatus.AWAITING_SPEAKERS for f in job.files)
         
         if all_completed:
             job.status = JobStatus.COMPLETED
             job.progress = 100
+        elif any_awaiting_speakers:
+            job.status = JobStatus.AWAITING_SPEAKERS
+            job.progress = 90
         elif any_failed:
             failed_count = sum(1 for f in job.files if f.status == JobStatus.FAILED)
             if failed_count == len(job.files):
