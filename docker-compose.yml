@@ -9,7 +9,6 @@ services:
     volumes:
       - ./data:/app/data
       - ./models:/app/models
-      - ./hf_cache:/root/.cache/huggingface
     deploy:
       resources:
         reservations:

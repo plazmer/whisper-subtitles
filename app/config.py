@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     device: str = "cuda"  # cuda, cpu, or auto
     default_language: str = "auto"
     default_diarization_model: str = "pyannote/speaker-diarization-3.1"
-    hf_home: str = "/root/.cache/huggingface"
+    hf_home: str = "/app/models/huggingface"
 
     # Paths
     data_dir: str = "/app/data"

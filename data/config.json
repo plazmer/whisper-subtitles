@@ -2,5 +2,7 @@
   "password_hash": "$2b$12$B6shJLMTenCDUYQRKgS4zeUoK/OkyNirS2ILUaqqj4dbOvTMd2xYe",
   "model": "large-v3",
   "device": "cuda",
-  "language": "auto"
+  "language": "auto",
+  "diarization_model": "pyannote/speaker-diarization-3.1",
+  "hf_token": ""
 }

@@ -73,6 +73,60 @@ async def health_check():
 
 
 # ============================================================================
+# GPU Diagnostics
+# ============================================================================
+
+_diagnostics_cache: dict = {}
+_diagnostics_ts: float = 0
+
+@app.post("/api/diagnostics/gpu")
+async def gpu_diagnostics(force: bool = False, user: dict = Depends(get_current_user)):
+    """Run GPU diagnostics with smoke test."""
+    import time
+
+    global _diagnostics_cache, _diagnostics_ts
+    now = time.time()
+    if not force and _diagnostics_cache and (now - _diagnostics_ts) < 300:
+        return _diagnostics_cache
+
+    loop = asyncio.get_event_loop()
+
+    from app.tasks.gpu_utils import resolve_device, check_volumes, run_smoke_test
+    current_settings = get_app_settings()
+    requested_device = current_settings.get("device", "auto")
+
+    device, diag = resolve_device(requested_device)
+    volumes = check_volumes(settings.models_dir)
+
+    is_busy = bool(processing_jobs)
+    if is_busy:
+        smoke = {"status": "skipped", "model": "tiny", "duration_sec": None,
+                 "device_used": device, "error": "GPU busy with transcription"}
+    else:
+        smoke = await loop.run_in_executor(None, run_smoke_test, device, settings.models_dir)
+
+    result = {
+        "cuda_available": diag.get("resolved") == "cuda" or (diag.get("fallback") is False and diag.get("requested") != "cpu"),
+        "gpu_name": diag.get("gpu_name"),
+        "vram_total_mb": diag.get("vram_total_mb"),
+        "vram_free_mb": diag.get("vram_free_mb"),
+        "cuda_version": diag.get("cuda_version"),
+        "driver_version": diag.get("driver_version"),
+        "torch_version": diag.get("torch_version"),
+        "device_requested": diag.get("requested"),
+        "device_resolved": diag.get("resolved"),
+        "fallback": diag.get("fallback"),
+        "fallback_reason": diag.get("fallback_reason"),
+        "smoke_test": smoke,
+        "volumes": volumes,
+    }
+
+    _diagnostics_cache = result
+    _diagnostics_ts = now
+    return result
+
+
+# ============================================================================
 # Authentication Routes
 # ============================================================================
 
@@ -781,10 +835,13 @@ async def run_transcription_subprocess(
                 if status == "completed":
                     break
                 elif status == "error":
-                    error = data.get("error", "Unknown error")
+                    error = data.get("message", data.get("error", "Unknown error"))
                     traceback_info = data.get("traceback", "")
                     if traceback_info:
                         print(f"[TRANSCRIBE] Error traceback:\n{traceback_info}")
+                    structured = data.get("structured_error")
+                    if structured:
+                        raise Exception(structured)
                     raise Exception(f"Transcription failed: {error}")
                 elif status == "cancelled":
                     raise Exception("Transcription cancelled")
@@ -1246,9 +1303,10 @@ async def process_job(job_id: str):
                         merge_transcription_with_diarization,
                         assign_default_speakers,
                     )
+                    from app.tasks.gpu_utils import format_device_message
 
                     loop = asyncio.get_event_loop()
-                    diarization_segments = await loop.run_in_executor(
+                    diarization_segments, diar_diag = await loop.run_in_executor(
                         None,
                         diarize,
                         audio_path,
@@ -1256,6 +1314,11 @@ async def process_job(job_id: str):
                         hf_token,
                         diar_device,
                     )
+
+                    diar_msg = format_device_message("Diarizing speakers", diar_diag)
+                    file.status_message = diar_msg
+                    job.status_message = diar_msg
+                    await update_job(job)
 
                     with open(segments_json_path, 'r', encoding='utf-8') as f:
                         whisper_segments = json.load(f)
@@ -1279,16 +1342,22 @@ async def process_job(job_id: str):
                     os.remove(audio_path)
                 
             except Exception as e:
-                # Check if this was a cancellation
                 if job_id in cancelled_jobs or "cancelled" in str(e).lower():
                     print(f"[CANCEL] Job {job_id} was cancelled during processing")
-                    return  # Exit cleanly, job already deleted
-                
+                    return
+
                 print(f"[ERROR] Transcription failed for {file.filename}: {e}")
                 import traceback
                 traceback.print_exc()
                 file.status = JobStatus.FAILED
-                file.error = str(e)
+                error_str = str(e)
+                try:
+                    json.loads(error_str)
+                    file.error = error_str
+                except (json.JSONDecodeError, TypeError):
+                    from app.tasks.errors import make_error
+                    file.error = make_error("transcription_failed", error_str,
+                                            details=traceback.format_exc())
             
             # Safe update - job may have been deleted
             try:
@@ -1326,7 +1395,14 @@ async def process_job(job_id: str):
         job = await get_job(job_id)
         if job:
             job.status = JobStatus.FAILED
-            job.error = str(e)
+            error_str = str(e)
+            try:
+                json.loads(error_str)
+                job.error = error_str
+            except (json.JSONDecodeError, TypeError):
+                from app.tasks.errors import make_error
+                job.error = make_error("transcription_failed", error_str,
+                                       details=traceback.format_exc())
             await update_job(job)
     finally:
         processing_jobs.discard(job_id)

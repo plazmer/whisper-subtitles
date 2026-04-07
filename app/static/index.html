@@ -253,6 +253,12 @@
                         <input type="password" id="setting-hf-token" class="form-select" placeholder="hf_...">
                     </div>
 
+                    <div class="settings-section">
+                        <h3 data-i18n="settings.gpu_diagnostics">GPU Diagnostics</h3>
+                        <button id="btn-gpu-diagnostics" class="btn btn-secondary" onclick="runGpuDiagnostics()" data-i18n="settings.gpu_diagnostics_run">Run Diagnostics</button>
+                        <div id="gpu-diagnostics-result" style="margin-top: 10px;"></div>
+                    </div>
+
                     <hr>
 
                     <div class="settings-section">

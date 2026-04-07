@@ -6,9 +6,9 @@ import whisper
 
 from app.config import settings
 from app.auth import get_config_data
+from app.tasks.gpu_utils import resolve_device, format_device_message
 
 
-# Global model cache
 _pipeline_cache = {}
 
 
@@ -16,22 +16,15 @@ def get_whisper_model(model_name: str, device: str = None):
     """Get or cache a Whisper model."""
     if model_name not in _pipeline_cache:
         print(f"Loading Whisper model: {model_name}")
-        
-        # Auto-detect device if not specified
-        if device is None:
-            device = "cuda" if settings.device == "auto" else settings.device
-        
-        # Use CUDA if available and requested
-        if device == "cuda":
-            import torch
-            if not torch.cuda.is_available():
-                print("CUDA not available, falling back to CPU")
-                device = "cpu"
-        
-        model = whisper.load_model(model_name, device=device, download_root="/app/models")
-        print(f"Model loaded on device: {device}")
-        
-        _pipeline_cache[model_name] = (model, device)
+
+        requested = device if device else settings.device
+        actual_device, diag = resolve_device(requested)
+        print(format_device_message(f"Loading {model_name}", diag))
+
+        model = whisper.load_model(model_name, device=actual_device, download_root="/app/models")
+        print(f"Model loaded on device: {actual_device}")
+
+        _pipeline_cache[model_name] = (model, actual_device)
 
     return _pipeline_cache[model_name]
 

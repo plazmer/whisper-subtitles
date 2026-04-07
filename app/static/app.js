@@ -126,6 +126,10 @@ const api = {
 
     async confirmSpeakers(jobId) {
         return this.request('POST', `/api/jobs/${jobId}/speakers/confirm`);
+    },
+
+    async runGpuDiagnostics(force = false) {
+        return this.request('POST', `/api/diagnostics/gpu?force=${force}`);
     }
 };
 
@@ -169,6 +173,39 @@ function showToast(message, type = 'info') {
 
 function formatStatus(status) {
     return i18n.t(`jobs.status.${status}`) || status;
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
+function renderError(errorRaw) {
+    if (!errorRaw) return '';
+    let err;
+    try { err = JSON.parse(errorRaw); } catch { err = null; }
+
+    if (!err || !err.message) {
+        return `<div class="text-error" style="margin-bottom: 12px; font-size: 13px;">${escapeHtml(errorRaw)}</div>`;
+    }
+
+    let html = '<div class="text-error structured-error" style="margin-bottom: 12px; font-size: 13px;">';
+    html += `<div class="error-message" style="font-weight:600;">${escapeHtml(err.message)}</div>`;
+    if (err.hint) {
+        let hintHtml = escapeHtml(err.hint);
+        if (err.url) {
+            hintHtml += ` <a href="${escapeHtml(err.url)}" target="_blank" rel="noopener" style="color:#60A5FA;">${escapeHtml(err.url)}</a>`;
+        }
+        html += `<div class="error-hint" style="font-style:italic; margin-top:4px; opacity:0.85;">${hintHtml}</div>`;
+    }
+    if (err.details) {
+        html += `<details style="margin-top:6px;"><summary style="cursor:pointer;opacity:0.7;font-size:12px;">${i18n.t('errors.show_details') || 'Details'}</summary>`;
+        html += `<pre style="white-space:pre-wrap;word-break:break-all;font-size:11px;margin-top:4px;max-height:200px;overflow:auto;">${escapeHtml(err.details)}</pre></details>`;
+    }
+    html += '</div>';
+    return html;
 }
 
 function formatDate(dateStr) {
@@ -309,6 +346,60 @@ function updateModelDescription() {
             ? translatedDesc
             : model.description;
         $('#model-description').textContent = description;
+    }
+}
+
+async function runGpuDiagnostics() {
+    const resultDiv = $('#gpu-diagnostics-result');
+    const btn = $('#btn-gpu-diagnostics');
+    btn.disabled = true;
+    resultDiv.innerHTML = '<span style="opacity:0.6;">Running diagnostics...</span>';
+
+    try {
+        const data = await api.runGpuDiagnostics(true);
+
+        let html = '<div style="font-size:13px;line-height:1.6;">';
+
+        if (data.device_resolved === 'cuda') {
+            html += `<div style="color:#34D399;">&#9679; CUDA: ${escapeHtml(data.gpu_name || 'GPU')}`;
+            if (data.vram_free_mb) html += ` | ${(data.vram_free_mb / 1024).toFixed(1)} GB free`;
+            if (data.torch_version) html += ` | torch ${escapeHtml(data.torch_version)}`;
+            html += '</div>';
+        } else {
+            html += `<div style="color:#FBBF24;">&#9679; ${i18n.t('diagnostics.cuda_unavailable') || 'CPU mode'}`;
+            if (data.fallback_reason) html += ` (${escapeHtml(data.fallback_reason)})`;
+            html += '</div>';
+        }
+
+        const smoke = data.smoke_test || {};
+        if (smoke.status === 'passed') {
+            html += `<div style="color:#34D399;">&#9679; ${i18n.t('diagnostics.smoke_passed') || 'Smoke test passed'} (${smoke.duration_sec}s on ${smoke.model})</div>`;
+        } else if (smoke.status === 'failed') {
+            html += `<div style="color:#FF6B6B;">&#9679; ${i18n.t('diagnostics.smoke_failed') || 'Smoke test failed'}: ${escapeHtml(smoke.error || '')}</div>`;
+        } else {
+            html += `<div style="color:#FBBF24;">&#9679; ${i18n.t('diagnostics.smoke_skipped') || 'Smoke test skipped'}</div>`;
+        }
+
+        const vol = data.volumes || {};
+        if (vol.writable) {
+            html += `<div style="color:#34D399;">&#9679; ${i18n.t('diagnostics.volumes_ok') || 'Volume OK'}`;
+        } else {
+            html += `<div style="color:#FF6B6B;">&#9679; ${i18n.t('diagnostics.volumes_warning') || 'Volume warning'}`;
+        }
+        html += '</div>';
+
+        if (vol.cached_whisper_models && vol.cached_whisper_models.length) {
+            html += `<div>&#128230; ${i18n.t('diagnostics.cached_models') || 'Cached'}: ${escapeHtml(vol.cached_whisper_models.join(', '))}`;
+            if (vol.hf_cache_size_mb) html += ` | HF cache: ${vol.hf_cache_size_mb} MB`;
+            html += '</div>';
+        }
+
+        html += '</div>';
+        resultDiv.innerHTML = html;
+    } catch (err) {
+        resultDiv.innerHTML = `<div style="color:#FF6B6B;">${escapeHtml(err.message)}</div>`;
+    } finally {
+        btn.disabled = false;
     }
 }
 
@@ -499,7 +590,7 @@ function renderJobCard(job) {
                     </div>
                 </div>
             ` : ''}
-            ${job.error ? `<div class="text-error" style="margin-bottom: 12px; font-size: 13px;">${job.error}</div>` : ''}
+            ${job.error ? renderError(job.error) : ''}
             ${filesHtml}
             ${actions ? `<div class="job-card-actions">${actions}</div>` : ''}
         </div>

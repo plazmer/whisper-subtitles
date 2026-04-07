@@ -120,6 +120,23 @@ settings:
     new: "Новый пароль"
     submit: "Сменить пароль"
   save: "Сохранить настройки"
+  gpu_diagnostics: "Диагностика GPU"
+  gpu_diagnostics_run: "Запустить диагностику"
+
+# GPU Diagnostics
+diagnostics:
+  cuda_available: "CUDA доступна"
+  cuda_unavailable: "CUDA недоступна, используется CPU"
+  smoke_passed: "Smoke-тест пройден"
+  smoke_failed: "Smoke-тест не пройден"
+  smoke_skipped: "Smoke-тест пропущен (GPU занят)"
+  volumes_ok: "Volume смонтирован корректно"
+  volumes_warning: "Volume не смонтирован — данные будут потеряны при перезапуске"
+  cached_models: "Закешированные модели"
+
+# Errors
+errors:
+  show_details: "Подробности"
 
 # Track Selection
 tracks:

@@ -1,5 +1,8 @@
 """Speaker diarization helpers based on pyannote.audio."""
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
+
+from app.tasks.errors import make_error
+from app.tasks.gpu_utils import resolve_device, format_device_message
 
 
 DEFAULT_COLORS = [
@@ -16,21 +19,98 @@ DEFAULT_COLORS = [
 ]
 
 
-def diarize(audio_path: str, model_name: str, hf_token: str, device: str = "cuda") -> List[Dict[str, Any]]:
-    """Run pyannote diarization and return normalized segments."""
+def _parse_hf_error(exc: Exception, model_name: str) -> str:
+    """Turn a HuggingFace / pyannote exception into a structured error JSON string."""
+    error_str = str(exc)
+    model_url = f"https://huggingface.co/{model_name}"
+    lower = error_str.lower()
+
+    if "401" in lower or "unauthorized" in lower:
+        return make_error(
+            "hf_gated_access_denied",
+            f"Токен HuggingFace невалиден или отсутствует для модели {model_name}",
+            details=error_str,
+            hint="Создайте токен на huggingface.co/settings/tokens и укажите его в настройках",
+            url=model_url,
+        )
+
+    if "403" in lower or "access" in lower or "gated" in lower:
+        return make_error(
+            "hf_gated_access_denied",
+            f"Нет доступа к модели {model_name}. Требуется принять условия использования.",
+            details=error_str,
+            hint="Откройте страницу модели, примите условия, и убедитесь что токен указан в настройках",
+            url=model_url,
+        )
+
+    if "404" in lower or "not found" in lower:
+        return make_error(
+            "hf_model_not_found",
+            f"Модель {model_name} не найдена на HuggingFace",
+            details=error_str,
+            hint="Проверьте название модели в настройках",
+            url=model_url,
+        )
+
+    return make_error(
+        "diarization_failed",
+        f"Ошибка диаризации: {model_name}",
+        details=error_str,
+    )
+
+
+def diarize(
+    audio_path: str,
+    model_name: str,
+    hf_token: str,
+    device: str = "cuda",
+) -> Tuple[List[Dict[str, Any]], dict]:
+    """Run pyannote diarization and return ``(segments, diagnostics)``.
+
+    Raises ``RuntimeError`` with a structured-error JSON payload on failure.
+    """
     from pyannote.audio import Pipeline
     import torch
 
-    if device == "auto":
-        device = "cuda" if torch.cuda.is_available() else "cpu"
+    if not hf_token:
+        raise RuntimeError(
+            make_error(
+                "hf_token_missing",
+                "Для диаризации требуется токен HuggingFace",
+                hint="Создайте токен на huggingface.co/settings/tokens и укажите его в настройках приложения",
+                url="https://huggingface.co/settings/tokens",
+            )
+        )
 
-    pipeline = Pipeline.from_pretrained(model_name, use_auth_token=hf_token)
+    actual_device, diag = resolve_device(device)
+
+    try:
+        pipeline = Pipeline.from_pretrained(model_name, use_auth_token=hf_token)
+    except Exception as exc:
+        raise RuntimeError(_parse_hf_error(exc, model_name)) from exc
+
     if pipeline is None:
         raise RuntimeError(
-            "Не удалось загрузить модель диаризации. "
-            "Проверьте HF-токен и примите условия модели на HuggingFace."
+            make_error(
+                "hf_gated_access_denied",
+                f"Не удалось загрузить модель {model_name}",
+                hint="Проверьте HF-токен и примите условия модели на HuggingFace",
+                url=f"https://huggingface.co/{model_name}",
+            )
         )
-    pipeline.to(torch.device(device))
+
+    try:
+        pipeline.to(torch.device(actual_device))
+    except torch.cuda.OutOfMemoryError as exc:
+        raise RuntimeError(
+            make_error(
+                "cuda_out_of_memory",
+                f"Недостаточно видеопамяти для загрузки модели {model_name}",
+                details=str(exc),
+                hint="Попробуйте использовать более лёгкую модель или переключиться на CPU",
+            )
+        ) from exc
+
     diarization = pipeline(audio_path)
 
     segments: List[Dict[str, Any]] = []
@@ -42,7 +122,7 @@ def diarize(audio_path: str, model_name: str, hf_token: str, device: str = "cuda
                 "speaker": speaker,
             }
         )
-    return segments
+    return segments, diag
 
 
 def merge_transcription_with_diarization(

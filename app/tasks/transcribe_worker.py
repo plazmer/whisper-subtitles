@@ -14,7 +14,9 @@ Outputs JSON progress updates to stdout:
 import sys
 import json
 import os
+import re
 import signal
+import time
 
 # Add parent to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -61,16 +63,75 @@ def generate_srt_from_result(result) -> str:
     return "\n".join(srt_lines)
 
 
+_real_stdout = None
+
+
 def emit_status(status: str, progress: int, message: str = None, **kwargs):
-    """Emit a JSON status line to stdout."""
-    output = {
-        "status": status,
-        "progress": progress,
-    }
+    """Emit a JSON status line to stdout (or saved real stdout)."""
+    payload = {"status": status, "progress": progress}
     if message:
-        output["message"] = message
-    output.update(kwargs)
-    print(json.dumps(output), flush=True)
+        payload["message"] = message
+    payload.update(kwargs)
+    target = _real_stdout if _real_stdout is not None else sys.stdout
+    target.write(json.dumps(payload) + "\n")
+    target.flush()
+
+
+def _fmt_time(seconds: float) -> str:
+    """Format seconds as MM:SS or HH:MM:SS."""
+    s = int(seconds)
+    if s >= 3600:
+        return f"{s // 3600}:{(s % 3600) // 60:02d}:{s % 60:02d}"
+    return f"{s // 60:02d}:{s % 60:02d}"
+
+
+def _parse_whisper_ts(ts: str) -> float:
+    """Parse Whisper verbose timestamp like '01:23.456' to seconds."""
+    parts = ts.split(":")
+    if len(parts) == 2:
+        return float(parts[0]) * 60 + float(parts[1])
+    if len(parts) == 3:
+        return float(parts[0]) * 3600 + float(parts[1]) * 60 + float(parts[2])
+    return 0.0
+
+
+class WhisperOutputCapture:
+    """Intercept Whisper verbose output, parse segments, emit JSON progress."""
+
+    _TS_RE = re.compile(r"\[(\d+:\d+\.\d+)\s*-->\s*(\d+:\d+\.\d+)\]\s*(.*)")
+
+    def __init__(self, duration: float, throttle_sec: float = 2.0):
+        self.duration = max(duration, 1.0)
+        self.throttle_sec = throttle_sec
+        self._last_emit = 0.0
+        self._buf = ""
+
+    def write(self, text: str):
+        self._buf += text
+        while "\n" in self._buf:
+            line, self._buf = self._buf.split("\n", 1)
+            self._handle(line)
+
+    def flush(self):
+        pass
+
+    def _handle(self, line: str):
+        m = self._TS_RE.match(line.strip())
+        if not m:
+            return
+        end_sec = _parse_whisper_ts(m.group(2))
+        text = m.group(3).strip()
+        ratio = min(end_sec / self.duration, 1.0)
+        progress = min(89, int(15 + ratio * 74))
+
+        now = time.time()
+        if now - self._last_emit < self.throttle_sec:
+            return
+        self._last_emit = now
+
+        snippet = (text[:80] + "...") if len(text) > 80 else text
+        msg = f"[{_fmt_time(end_sec)}/{_fmt_time(self.duration)}] {snippet}"
+        emit_status("transcribing", progress, message=msg)
 
 
 def main():
@@ -96,14 +157,15 @@ def main():
         import whisper
         import torch
 
-        # Determine device from argument
-        if device == "auto":
-            device = "cuda" if torch.cuda.is_available() else "cpu"
-        
-        # Check CUDA availability
-        if device == "cuda" and not torch.cuda.is_available():
-            emit_status("warning", 0, message="CUDA not available, falling back to CPU")
-            device = "cpu"
+        from app.tasks.gpu_utils import resolve_device, format_device_message
+        from app.tasks.errors import make_error
+
+        device, diag = resolve_device(device)
+
+        emit_status("device_info", 0, message=format_device_message("Inference", diag), diagnostics=diag)
+
+        if diag.get("fallback"):
+            emit_status("warning", 0, message=f"CUDA not available ({diag.get('fallback_reason')}), using CPU")
 
         emit_status("loading_model", 0, message=f"Loading model '{model_name}' to {device}...")
 
@@ -123,19 +185,25 @@ def main():
         import gc
         gc.collect()
 
-        emit_status("transcribing", 15, 
-                   message=f"Transcribing audio ({duration:.1f}s) with {device.upper()}...")
+        emit_status("transcribing", 15,
+                   message=format_device_message(f"Transcribing audio ({duration:.1f}s)", diag))
 
-        # Configure transcription
         options = {
             "task": "transcribe",
+            "verbose": True,
         }
-        
+
         if language != "auto" and language:
             options["language"] = language
 
-        # Run transcription
-        result = model.transcribe(audio_path, **options)
+        global _real_stdout
+        _real_stdout = sys.stdout
+        sys.stdout = WhisperOutputCapture(duration)
+        try:
+            result = model.transcribe(audio_path, **options)
+        finally:
+            sys.stdout = _real_stdout
+            _real_stdout = None
 
         emit_status("generating_srt", 90, message="Generating SRT subtitles...")
 
@@ -171,7 +239,20 @@ def main():
         import traceback
         error_msg = str(e)
         traceback_info = traceback.format_exc()
-        emit_status("error", 0, message=error_msg, traceback=traceback_info)
+
+        try:
+            from app.tasks.errors import make_error
+            if "out of memory" in error_msg.lower() or "cuda" in error_msg.lower():
+                structured = make_error("cuda_out_of_memory", error_msg,
+                                        details=traceback_info,
+                                        hint="Попробуйте более лёгкую модель или переключитесь на CPU")
+            else:
+                structured = make_error("transcription_failed", error_msg,
+                                        details=traceback_info)
+            emit_status("error", 0, message=error_msg, traceback=traceback_info,
+                       structured_error=structured)
+        except Exception:
+            emit_status("error", 0, message=error_msg, traceback=traceback_info)
         sys.exit(1)
 
 

@@ -115,6 +115,23 @@ settings:
     new: "Yeni Şifre"
     submit: "Şifreyi Değiştir"
   save: "Ayarları Kaydet"
+  gpu_diagnostics: "GPU Diagnostics"
+  gpu_diagnostics_run: "Run Diagnostics"
+
+# GPU Diagnostics
+diagnostics:
+  cuda_available: "CUDA available"
+  cuda_unavailable: "CUDA unavailable, using CPU"
+  smoke_passed: "Smoke test passed"
+  smoke_failed: "Smoke test failed"
+  smoke_skipped: "Smoke test skipped (GPU busy)"
+  volumes_ok: "Volume mounted correctly"
+  volumes_warning: "Volume not mounted — data will be lost on restart"
+  cached_models: "Cached models"
+
+# Errors
+errors:
+  show_details: "Details"
 
 # Track Selection
 tracks:
