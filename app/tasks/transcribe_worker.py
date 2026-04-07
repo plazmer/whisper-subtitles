@@ -145,8 +145,27 @@ def main():
         with open(output_srt_path, 'w', encoding='utf-8') as f:
             f.write(srt_content)
 
-        emit_status("completed", 100, message=f"Transcription complete: {os.path.basename(output_srt_path)}", 
-                   output=output_srt_path)
+        segments_json_path = output_srt_path.rsplit('.', 1)[0] + '.segments.json'
+        whisper_segments = []
+        for segment in result.get("segments", []):
+            whisper_segments.append(
+                {
+                    "start": segment["start"],
+                    "end": segment["end"],
+                    "text": segment["text"].strip(),
+                }
+            )
+
+        with open(segments_json_path, 'w', encoding='utf-8') as f:
+            json.dump(whisper_segments, f, ensure_ascii=False, indent=2)
+
+        emit_status(
+            "completed",
+            100,
+            message=f"Transcription complete: {os.path.basename(output_srt_path)}",
+            output=output_srt_path,
+            segments_path=segments_json_path,
+        )
 
     except Exception as e:
         import traceback
