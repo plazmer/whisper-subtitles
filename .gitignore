@@ -65,6 +65,7 @@ models/*.pt
 
 # Secrets
 .env
+data/config.json
 
 # Docker build cache
 *.tar

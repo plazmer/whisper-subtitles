@@ -19,6 +19,15 @@ DEFAULT_COLORS = [
 ]
 
 
+def _format_timestamp(seconds: float) -> str:
+    """Format seconds as HH:MM:SS for speaker preview snippets."""
+    total_seconds = max(0, int(seconds))
+    hours = total_seconds // 3600
+    minutes = (total_seconds % 3600) // 60
+    secs = total_seconds % 60
+    return f"{hours:02d}:{minutes:02d}:{secs:02d}"
+
+
 def _parse_hf_error(exc: Exception, model_name: str) -> str:
     """Turn a HuggingFace / pyannote exception into a structured error JSON string."""
     error_str = str(exc)
@@ -195,6 +204,8 @@ def get_speaker_examples(
         text = segment["text"]
         if len(text) > max_chars:
             text = text[:max_chars].rstrip() + "..."
-        examples[speaker].append(text)
+        start = _format_timestamp(segment.get("start", 0.0))
+        end = _format_timestamp(segment.get("end", 0.0))
+        examples[speaker].append(f"[{start} - {end}] {text}")
 
     return examples
