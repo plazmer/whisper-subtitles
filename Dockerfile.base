@@ -39,6 +39,9 @@ RUN pip3 install --no-cache-dir \
 # Stage 5: Install Whisper (without deps - torch already installed)
 RUN pip3 install --no-cache-dir --no-deps openai-whisper
 
+# Stage 5.5: Install pyannote for speaker diarization
+RUN pip3 install --no-cache-dir pyannote.audio
+
 # Stage 6: Install audio libraries
 RUN pip3 install --no-cache-dir \
     tqdm \
@@ -53,6 +56,7 @@ RUN mkdir -p /app/data/uploads /app/data/downloads /app/data/temp /app/data/outp
 
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
+ENV HF_HOME=/root/.cache/huggingface
 
 EXPOSE 8000
 
